@@ -6,8 +6,8 @@ The most advanced user-permission & security management plugin available for Ope
 with features no other plugin offers.
 
 > (ad)
-Powered By BreathAI
-Free Claude 4.5/Gemini 3 Pro/GPT-5.1/DeepSeek/Llama/Grok4.1 API
+Powered By [BreathAI](https://breathai.top)
+Free Claude 4.5/Gemini 3 Pro/GPT-5.1/DeepSeek/Llama/Grok4.1 API 
 
 ---
 
@@ -174,7 +174,6 @@ Pull requests, feature ideas, and security discussions are welcome!
 A star ⭐ on GitHub helps a lot.
 https://github.com/zealmult/OpenAccess-Guard
 
-(ad)
-Powered By BreathAI
-Free Claude 4.5/Gemini 3 Pro/GPT-5.1/DeepSeek/Llama/Grok4.1 API
-
+> (ad)
+Powered By [BreathAI](https://breathai.top)
+Free Claude 4.5/Gemini 3 Pro/GPT-5.1/DeepSeek/Llama/Grok4.1 API 
