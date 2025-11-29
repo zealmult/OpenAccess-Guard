@@ -1,3 +1,12 @@
+"""
+title: OpenAccess Guard
+author: zealmult
+author_url: https://github.com/zealmult
+funding_url: https://breathai.top/
+homepage: https://github.com/zealmult/OpenAccess-Guard/
+version: 1.0
+"""
+
 import time
 import re
 import asyncio
