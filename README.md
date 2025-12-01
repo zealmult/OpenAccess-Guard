@@ -42,15 +42,15 @@ All in one unified, developer-friendly system.
 
 ## 🔥 Core Features
 
-### 🧩 1. Dynamic Tier System
+### 🧩 1. Group-Based Permission System
 
-Create **unlimited user and model tiers** with different permission levels:
+Replace rigid tiers with flexible **User Groups** and **Model Groups**:
 
-- **User Tiers (0-∞)**: Define free users, paid users, premium users, etc.
-- **Model Tiers (0-∞)**: Categorize models by cost/capability
-- **Flexible Matching**: Strict tier matching or custom whitelist/blacklist logic
+- **User Groups**: Categorize users (e.g., Free, Premium, Admin)
+- **Model Groups**: Categorize models (e.g., Basic, Advanced, Experimental)
+- **Permissions Matrix**: Define exactly which User Group can access which Model Group, and with what limits.
 
-*Example*: Tier 0 users get 10 RPM, Tier 1 users get 100 RPM, Tier 2 users unlimited.
+*Example*: "Free Users" can access "Basic Models" at 10 RPM, but cannot access "Advanced Models". "Premium Users" can access everything with higher limits.
 
 ### ⚡ 2. Intelligent Rate Limiting
 
@@ -155,75 +155,76 @@ Automatically limit conversation history to save tokens and costs:
    }
    ```
 
-2. **Add Rate Limiting**
+2. **Configure Groups**
    ```json
    {
-     "user_tiers": [{
-       "tier_id": 0,
-       "tier_name": "Free Users",
-       "rpm": 10,
-       "rph": 100,
-       "emails": []
+     "model_groups": [{
+       "id": "basic_models",
+       "name": "Basic Models",
+       "models": ["gpt-3.5-turbo", "gemini-flash"]
+     }],
+     "user_groups": [{
+       "id": "free_users",
+       "name": "Free Users",
+       "emails": [],
+       "default_permissions": {
+         "enabled": true,
+         "rpm": 10,
+         "rph": 100
+       }
      }]
    }
    ```
 
-3. **Done!** All users now limited to 10 requests/min, 100/hour.
+3. **Done!** All users now limited to 10 requests/min on basic models.
 
-### Advanced: Paid vs Free Tiers
-
-```json
-{
-  "user_tiers": [
-    {
-      "tier_id": 0,
-      "tier_name": "Free",
-      "rpm": 5,
-      "rph": 20,
-      "emails": []
-    },
-    {
-      "tier_id": 1,
-      "tier_name": "Premium",
-      "rpm": 100,
-      "rph": 1000,
-      "emails": ["premium@example.com"]
-    }
-  ]
-}
-```
+### Advanced: Paid vs Free
+   ```json
+   {
+     "user_groups": [
+       {
+         "id": "free",
+         "name": "Free Users",
+         "default_permissions": {"enabled": true, "rpm": 5}
+       },
+       {
+         "id": "premium",
+         "name": "Premium Users",
+         "emails": ["vip@example.com"],
+         "priority": 10,
+         "default_permissions": {"enabled": true, "rpm": 100}
+       }
+     ]
+   }
+   ```
 
 ---
 
 ## ⚙️ Configuration Guide
 
-### User Tier System
+### User Groups
 
-Define different user levels with custom limits:
+Define user categories and their permissions:
 
 | Field | Description | Example |
 |-------|-------------|---------|
-| `tier_id` | Unique tier identifier | `0`, `1`, `2` |
-| `tier_name` | Display name | `"Free"`, `"Premium"` |
-| `emails` | Users in this tier | `["user@example.com"]` |
-| `rpm` | Requests per minute | `10` |
-| `rph` | Requests per hour | `100` |
-| `win_time` | Sliding window (minutes) | `1440` (24h) |
-| `win_limit` | Requests in window | `500` |
-| `clip` | Context message limit | `10` |
+| `id` | Unique identifier | `"free_users"` |
+| `name` | Display name | `"Free Tier"` |
+| `priority` | Higher number = higher priority | `10` |
+| `emails` | Users in this group | `["user@example.com"]` |
+| `default_permissions` | Default limits for all models | `{ "rpm": 10 }` |
+| `permissions` | Specific limits per model group | `{ "gpt4_group": { "rpm": 2 } }` |
 
-### Model Tier System
+### Model Groups
 
-Control access to specific models:
+Categorize models:
 
 ```json
 {
-  "model_tiers": [{
-    "tier_id": 1,
-    "tier_name": "Premium Models",
-    "models": ["gpt-4", "claude-3-opus"],
-    "mode_whitelist": true,
-    "access_list": ["premium@example.com"]
+  "model_groups": [{
+    "id": "expensive_models",
+    "name": "GPT-4 & Claude 3",
+    "models": ["gpt-4", "claude-3-opus"]
   }]
 }
 ```

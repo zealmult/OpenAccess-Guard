@@ -762,6 +762,8 @@
             line-height: 1.6;
             white-space: pre-wrap;
             word-wrap: break-word;
+            overflow-wrap: break-word;
+            max-width: 100%;
         }
 
         .ai-message.user .ai-message-content {
@@ -1213,46 +1215,16 @@
                     </div>
                 </div>>
 
-                <!-- 5. User Tiers -->
-                <h2 data-i18n="sec_user_tiers">User Tier System</h2>
-                <p data-i18n="sec_user_tiers_desc">Categorize users into Tier 0-5. Default is Tier 0.</p>
-
-                <div class="card">
-                    <div class="card-body" style="display:block; padding-top:20px;">
-                        <div class="toggle-row">
-                            <div>
-                                <div class="label-text" data-i18n="global_limit">Global Limit</div>
-                                <div class="description" data-i18n="global_limit_desc">Limits apply across all models
-                                    cumulatively.</div>
-                            </div>
-                            <label class="switch"><input type="checkbox" id="global_limit"
-                                    onchange="updateConfig()"><span class="slider"></span></label>
-                        </div>
-                    </div>
+                <!-- 5. User Groups -->
+                <h2 data-i18n="sec_user_groups">User Groups</h2>
+                <div id="user_groups_container">
+                    <!-- JS will inject User Group Cards here -->
                 </div>
 
-                <div id="user_tiers_container">
-                    <!-- JS will inject Tier 0-5 Cards here -->
-                </div>
-
-                <!-- 6. Model Tiers -->
-                <h2 data-i18n="sec_model_tiers">Model Tier System</h2>
-                <div class="card">
-                    <div class="card-body" style="display:block; padding-top:20px;">
-                        <div class="toggle-row">
-                            <div>
-                                <div class="label-text" data-i18n="match_tiers">Match Model & User Tiers</div>
-                                <div class="description" data-i18n="match_tiers_desc">If ON, Tier X Users can ONLY use
-                                    Tier X Models.</div>
-                            </div>
-                            <label class="switch"><input type="checkbox" id="match_tiers"
-                                    onchange="updateConfig()"><span class="slider"></span></label>
-                        </div>
-                    </div>
-                </div>
-
-                <div id="model_tiers_container">
-                    <!-- JS will inject Model Tier Cards here -->
+                <!-- 6. Model Groups -->
+                <h2 data-i18n="sec_model_groups">Model Groups</h2>
+                <div id="model_groups_container">
+                    <!-- JS will inject Model Group Cards here -->
                 </div>
 
                 <!-- 7. Ban System -->
@@ -1527,7 +1499,7 @@
                 <div class="card open">
                     <div class="card-body" style="display:block; padding-top:20px">
                         <h3>OpenAccess Guard Pro</h3>
-                        <p style="color:var(--text-secondary); margin-top:-10px; margin-bottom:15px;">Version 0.1.1</p>
+                        <p style="color:var(--text-secondary); margin-top:-10px; margin-bottom:15px;">Version 0.2.0</p>
                         <p data-i18n="info_desc">Advanced governance for your LLM interface.</p>
 
                         <p><strong>GitHub:</strong> <a href="https://github.com/zealmult/OpenAccess-Guard"
@@ -1777,6 +1749,22 @@
                 ai_stream: "启用流式传输",
                 ai_stream_desc: "实时流式传输响应",
                 ai_save_settings: "保存设置",
+                ai_stream_desc: "实时流式传输响应",
+                ai_save_settings: "保存设置",
+
+                // Group System
+                sec_model_groups: "模型组配置",
+                sec_user_groups: "用户组配置",
+                btn_add_model_group: "➕ 添加新模型组",
+                btn_add_user_group: "➕ 添加新用户组",
+                group_name: "组名称",
+                group_id: "组 ID",
+                group_priority: "优先级",
+                group_priority_desc: "数字越大优先级越高",
+                perm_matrix: "权限矩阵",
+                perm_default: "默认权限",
+                perm_enabled: "启用访问",
+                perm_using_default: "使用默认权限",
 
                 info_title: "关于", info_desc: "Open WebUI 的高级治理工具。",
                 ad_breath_title: "🚀 由 BreathAI 驱动",
@@ -1800,9 +1788,11 @@
             exemption: { enabled: false, emails: [] },
             priority: { user_priority: false },  // 全局优先级开关
             global_limit: { enabled: false },
-            user_tiers: [], // 动态数组
+            model_groups: [], // NEW: Group System
+            user_groups: [],  // NEW: Group System
+            user_tiers: [], // Legacy
             model_tiers_config: { match_tiers: true },
-            model_tiers: [], // 动态数组
+            model_tiers: [], // Legacy
             ban_reasons: [], // 改为数组结构
             fallback: { enabled: false, model: "", notify: true, notify_msg: "Rate limit reached. Switched to basic model." },
             logging: { enabled: false, oag_log: true, inlet: false, outlet: false, stream: false, user_dict: false },
@@ -1813,14 +1803,38 @@
                 user_deny_model: "Tier {u_tier} users cannot use model {model_id}",
                 model_wl_deny: "Access Denied to Tier {m_tier} Model (Whitelist)",
                 model_bl_deny: "Access Denied to Tier {m_tier} Model (Blacklist)",
-                rate_limit_deny: "Rate Limit Exceeded: {reason}"
+                rate_limit_deny: "Rate Limit Exceeded: {reason}",
+                group_no_permission: "Access Denied: User group '{u_group}' cannot access model group '{m_group}'"
             }
         };
 
         // --- Core Logic ---
 
         function init() {
-            // 只初始化默认 Tier 0
+            // Initialize default Model Group
+            if (!config.model_groups || config.model_groups.length === 0) {
+                config.model_groups = [{
+                    id: "default",
+                    name: "Default Models",
+                    models: []
+                }];
+            }
+
+            // Initialize default User Group
+            if (!config.user_groups || config.user_groups.length === 0) {
+                config.user_groups = [{
+                    id: "default",
+                    name: "Default Users",
+                    priority: 0,
+                    emails: [],
+                    default_permissions: {
+                        enabled: false, rpm: 0, rph: 0, win_time: 0, win_limit: 0, clip: 0
+                    },
+                    permissions: {}
+                }];
+            }
+
+            // Legacy Init (keep for safety)
             if (config.user_tiers.length === 0) {
                 config.user_tiers.push({
                     tier_id: 0, tier_name: "Default", enabled: true, rpm: 0, rph: 0,
@@ -1904,6 +1918,59 @@
                 } catch (e) { console.error("Load error", e); }
             }
 
+            // Client-side Migration: Tier -> Group
+            if ((!config.user_groups || config.user_groups.length === 0) && config.user_tiers && config.user_tiers.length > 0) {
+                console.log("Auto-migrating to Group System...");
+
+                // Migrate Model Tiers -> Model Groups
+                config.model_groups = config.model_tiers.map(tier => ({
+                    id: `tier_${tier.tier_id}`,
+                    name: tier.tier_name || `Tier ${tier.tier_id}`,
+                    models: tier.models || []
+                }));
+
+                // Migrate User Tiers -> User Groups
+                config.user_groups = config.user_tiers.map(tier => {
+                    let permissions = {};
+                    config.model_groups.forEach(mg => {
+                        // Simple migration: copy user tier limits to all model groups
+                        // Detailed access logic is complex to replicate in JS, so we default to enabled
+                        // and let the user refine it in the new UI.
+                        permissions[mg.id] = {
+                            enabled: true,
+                            rpm: tier.rpm || 0,
+                            rph: tier.rph || 0,
+                            win_time: tier.win_time || 0,
+                            win_limit: tier.win_limit || 0,
+                            clip: tier.clip || 0
+                        };
+                    });
+
+                    return {
+                        id: `tier_${tier.tier_id}`,
+                        name: tier.tier_name || `Tier ${tier.tier_id}`,
+                        priority: tier.tier_id || 0,
+                        emails: tier.emails || [],
+                        default_permissions: {
+                            enabled: false, rpm: 0, rph: 0, win_time: 0, win_limit: 0, clip: 0
+                        },
+                        permissions: permissions
+                    };
+                });
+            }
+
+            // Ensure at least one default group exists if migration didn't happen or resulted in empty
+            if (!config.model_groups || config.model_groups.length === 0) {
+                config.model_groups = [{ id: "default", name: "Default Models", models: [] }];
+            }
+            if (!config.user_groups || config.user_groups.length === 0) {
+                config.user_groups = [{
+                    id: "default", name: "Default Users", priority: 0, emails: [],
+                    default_permissions: { enabled: false, rpm: 0, rph: 0, win_time: 0, win_limit: 0, clip: 0 },
+                    permissions: {}
+                }];
+            }
+
             renderDynamicSections();
             syncUI();
 
@@ -1916,157 +1983,224 @@
             setLang(defaultLang);
         }
 
-        function renderDynamicSections() {
-            const globalPriorityEnabled = config.priority && config.priority.user_priority;
+        function renderDynamicSections(preserveState = false) {
+            renderUserGroups(preserveState);
+            renderModelGroups(preserveState);
+            renderBanReasons();
+            renderAds();
+        }
 
-            // ======= 1. User Tiers =======
-            const utContainer = document.getElementById('user_tiers_container');
-            utContainer.innerHTML = '';
+        function renderUserGroups(preserveState = false) {
+            const container = document.getElementById('user_groups_container');
 
-            config.user_tiers.forEach((tier, i) => {
-                const canDelete = tier.tier_id !== 0; // Tier 0 不可删除
-                utContainer.innerHTML += `
-            <div class="card">
+            // Save open/closed state of cards before re-rendering
+            let openStates = [];
+            if (preserveState) {
+                container.querySelectorAll('.card').forEach((card, idx) => {
+                    openStates[idx] = card.classList.contains('open');
+                });
+            }
+
+            container.innerHTML = '';
+
+            config.user_groups.forEach((group, i) => {
+                const canDelete = group.id !== 'default';
+                const isOpen = preserveState && openStates[i] ? 'open' : '';
+                container.innerHTML += `
+            <div class="card ${isOpen}">
                 <div class="card-header" onclick="toggleCard(this)">
                     <h3>
-                        <input type="text" value="${tier.tier_name || `Tier ${tier.tier_id}`}" 
-                               id="ut_${i}_name" 
-                               onchange="config.user_tiers[${i}].tier_name=this.value;updateConfig();"
-                               style="background:transparent;border:none;font-size:1.4rem;font-weight:600;width:auto;padding:0;margin:0;color:inherit"
-                               onclick="event.stopPropagation()">
-                        <span style="font-weight:normal; font-size:0.8rem; opacity:0.7">(ID: ${tier.tier_id})</span>
+                        <span style="font-weight:600; font-size:1.2rem">${group.name}</span>
+                        <span style="font-weight:normal; font-size:0.8rem; opacity:0.7; margin-left:10px">(ID: ${group.id})</span>
                     </h3>
                     <span class="icon chevron">▼</span>
                 </div>
                 <div class="card-body">
-                    ${canDelete ? `<button class="btn-danger" onclick="removeUserTier(${i})" style="width:100%;margin-bottom:15px" data-i18n="btn_delete_tier">🗑 Delete This Tier</button>` : ''}
-                    
-                    <div class="control-group">
-                        <div class="toggle-row">
-                            <div class="label-text" data-i18n="tier_enable">Enable Tier</div>
-                            <label class="switch"><input type="checkbox" id="ut_${i}_enabled" onchange="updateConfig()"><span class="slider"></span></label>
-                        </div>
-                    </div>
-                    
-                    <!-- 单独的用户优先级开关 -->
-                    <div class="control-group" id="ut_${i}_priority_section">
-                        <div class="toggle-row">
-                            <div>
-                                <div class="label-text" data-i18n="tier_user_priority">User Limit Priority (This Tier)</div>
-                                <div class="description" data-i18n="tier_user_priority_desc">When enabled for this tier, user limits take precedence over model limits</div>
-                                ${globalPriorityEnabled ? '<div class="description" style="color:var(--danger);font-weight:600" data-i18n="tier_priority_overridden">⚠ Overridden by Global Setting</div>' : ''}
-                            </div>
-                            <label class="switch"><input type="checkbox" id="ut_${i}_user_priority" onchange="updateConfig()" ${globalPriorityEnabled ? 'disabled' : ''}><span class="slider"></span></label>
-                        </div>
-                    </div>
+                    ${canDelete ? `<button class="btn-danger" onclick="removeUserGroup(${i})" style="width:100%;margin-bottom:15px" data-i18n="btn_delete">🗑 Delete Group</button>` : ''}
                     
                     <div class="input-row">
-                        <div class="input-col"><label class="input-label" data-i18n="input_rpm">RPM</label><input type="number" id="ut_${i}_rpm" onchange="updateConfig()"></div>
-                        <div class="input-col"><label class="input-label" data-i18n="input_rph">RPH</label><input type="number" id="ut_${i}_rph" onchange="updateConfig()"></div>
-                    </div>
-                    <div class="input-row">
-                        <div class="input-col"><label class="input-label" data-i18n="input_win_time">Win Time</label><input type="number" id="ut_${i}_win_time" onchange="updateConfig()"></div>
-                        <div class="input-col"><label class="input-label" data-i18n="input_win_limit">Win Limit</label><input type="number" id="ut_${i}_win_limit" onchange="updateConfig()"></div>
-                        <div class="input-col"><label class="input-label" data-i18n="input_clip">Clip</label><input type="number" id="ut_${i}_clip" onchange="updateConfig()"></div>
-                    </div>
-                    
-                    <div style="margin-top:20px; border-top:1px solid var(--border); padding-top:15px;">
-                        <div class="toggle-row">
-                            <div class="label-text" data-i18n="deny_model_switch">Deny Models</div>
-                            <label class="switch"><input type="checkbox" id="ut_${i}_deny_enabled" onchange="updateConfig()"><span class="slider"></span></label>
+                        <div class="input-col">
+                            <label class="input-label" data-i18n="group_name">Group Name</label>
+                            <input type="text" value="${group.name}" onchange="config.user_groups[${i}].name=this.value;updateConfig()">
                         </div>
-                        <div id="ut_${i}_deny_area" class="sub-section hidden">
-                             <label class="input-label" data-i18n="deny_model_list">Model IDs</label>
-                             <div id="ut_${i}_deny_tags" class="tag-container"></div>
-                             <div class="tag-input-wrapper">
-                                <input type="text" id="ut_${i}_deny_input" placeholder="model_id" onkeydown="handleTagInput(event, 'user_tiers.${i}.deny_models', 'ut_${i}_deny_tags')">
-                                <button class="btn-add" onclick="addTagFromInput('ut_${i}_deny_input', 'user_tiers.${i}.deny_models', 'ut_${i}_deny_tags')">+</button>
-                             </div>
+                        <div class="input-col">
+                            <label class="input-label" data-i18n="group_id">Group ID</label>
+                            <input type="text" value="${group.id}" onchange="config.user_groups[${i}].id=this.value;updateConfig()" ${!canDelete ? 'disabled' : ''}>
+                        </div>
+                        <div class="input-col">
+                            <label class="input-label" data-i18n="group_priority">Priority</label>
+                            <input type="number" value="${group.priority}" onchange="config.user_groups[${i}].priority=parseInt(this.value);updateConfig()">
                         </div>
                     </div>
 
                     <div style="margin-top:15px;">
                         <label class="input-label" data-i18n="user_list">Users</label>
-                        <div id="ut_${i}_users_tags" class="tag-container"></div>
+                        <div id="ug_${i}_users_tags" class="tag-container"></div>
                         <div class="tag-input-wrapper">
-                            <input type="text" id="ut_${i}_users_input" placeholder="user@email.com" onkeydown="handleTagInput(event, 'user_tiers.${i}.emails', 'ut_${i}_users_tags')">
-                            <button class="btn-add" onclick="addTagFromInput('ut_${i}_users_input', 'user_tiers.${i}.emails', 'ut_${i}_users_tags')">+</button>
+                            <input type="text" id="ug_${i}_users_input" placeholder="user@email.com" onkeydown="handleTagInput(event, 'user_groups.${i}.emails', 'ug_${i}_users_tags')">
+                            <button class="btn-add" onclick="addTagFromInput('ug_${i}_users_input', 'user_groups.${i}.emails', 'ug_${i}_users_tags')">+</button>
+                        </div>
+                    </div>
+
+                    <div style="margin-top:20px; border-top:1px solid var(--border); padding-top:15px;">
+                        <h4 data-i18n="perm_matrix">Permissions Matrix</h4>
+                        <div id="ug_${i}_perms_container">
+                            ${renderPermissionsMatrix(i)}
                         </div>
                     </div>
                 </div>
             </div>`;
             });
 
-            // 添加新User Tier按钮
-            utContainer.innerHTML += `
+            container.innerHTML += `
                 <div style="text-align:center; margin-top:20px">
-                    <button class="btn-secondary" onclick="addUserTier()" style="padding:12px 24px" data-i18n="btn_add_user_tier">➕ Add New User Tier</button>
+                    <button class="btn-secondary" onclick="addUserGroup()" style="padding:12px 24px" data-i18n="btn_add_user_group">➕ Add User Group</button>
                 </div>`;
 
-            // ======= 2. Model Tiers =======
-            const mtContainer = document.getElementById('model_tiers_container');
-            mtContainer.innerHTML = '';
-            config.model_tiers.forEach((tier, i) => {
-                const canDelete = tier.tier_id !== 0;
-                mtContainer.innerHTML += `
-            <div class="card">
+            // Re-apply language after rendering
+            applyLanguageToDynamicContent();
+        }
+
+        function renderPermissionsMatrix(groupIndex) {
+            let html = '';
+            const group = config.user_groups[groupIndex];
+
+            // Default Permissions
+            const defPerms = group.default_permissions;
+            html += `
+            <div class="card" style="background:rgba(var(--primary-rgb), 0.05); border:1px solid var(--primary)">
+                <div class="card-header" onclick="toggleCard(this)">
+                    <h4 style="margin:0" data-i18n="perm_default">Default Permissions</h4>
+                    <span class="icon chevron">▼</span>
+                </div>
+                <div class="card-body">
+                    <div class="toggle-row">
+                        <div class="label-text" data-i18n="perm_enabled">Enable Access</div>
+                        <label class="switch"><input type="checkbox" ${defPerms.enabled ? 'checked' : ''} onchange="config.user_groups[${groupIndex}].default_permissions.enabled=this.checked;updateConfig()"><span class="slider"></span></label>
+                    </div>
+                    ${renderLimitInputs(`user_groups[${groupIndex}].default_permissions`, defPerms, false)}
+                </div>
+            </div>`;
+
+            // Per Model Group Permissions
+            config.model_groups.forEach(mg => {
+                const perms = group.permissions[mg.id];
+                const hasOverride = perms !== undefined;
+                const currentPerms = hasOverride ? perms : group.default_permissions; // Show default if not overridden
+
+                html += `
+                <div class="card" style="margin-top:10px">
+                    <div class="card-header" onclick="toggleCard(this)">
+                        <h4 style="margin:0">
+                            <span style="opacity:0.7">Model Group:</span> ${mg.name}
+                        </h4>
+                        <div style="display:flex; align-items:center; gap:10px">
+                             ${!hasOverride ? `<button class="btn-secondary" style="padding:4px 8px; font-size:0.8rem" onclick="event.stopPropagation();addPermissionOverride(${groupIndex}, '${mg.id}')">Override</button>` :
+                        `<button class="btn-danger" style="padding:4px 8px; font-size:0.8rem" onclick="event.stopPropagation();removePermissionOverride(${groupIndex}, '${mg.id}')">Reset</button>`}
+                             <span class="icon chevron">▼</span>
+                        </div>
+                    </div>
+                    <div class="card-body">
+                        ${!hasOverride ? `
+                        <div style="padding:10px; background:rgba(0,0,0,0.03); border-radius:8px; margin-bottom:10px">
+                            <div style="opacity:0.7; font-size:0.85rem; margin-bottom:5px" data-i18n="perm_using_default">Using Default Permissions</div>
+                        </div>
+                        <div style="opacity:0.6; pointer-events:none">
+                            <div class="toggle-row">
+                                <div class="label-text" data-i18n="perm_enabled">Enable Access</div>
+                                <label class="switch"><input type="checkbox" ${currentPerms.enabled ? 'checked' : ''} disabled><span class="slider"></span></label>
+                            </div>
+                            ${renderLimitInputs(`user_groups[${groupIndex}].default_permissions`, currentPerms, true)}
+                        </div>
+                        ` : `
+                        <div class="toggle-row">
+                            <div class="label-text" data-i18n="perm_enabled">Enable Access</div>
+                            <label class="switch"><input type="checkbox" ${currentPerms.enabled ? 'checked' : ''} onchange="config.user_groups[${groupIndex}].permissions['${mg.id}'].enabled=this.checked;updateConfig()"><span class="slider"></span></label>
+                        </div>
+                        ${renderLimitInputs(`user_groups[${groupIndex}].permissions['${mg.id}']`, currentPerms, false)}
+                        `}
+                    </div>
+                </div>`;
+            });
+
+            return html;
+        }
+
+        function renderLimitInputs(path, data, disabled = false) {
+            const disabledAttr = disabled ? 'disabled' : '';
+            const onchangeAttr = disabled ? '' : `onchange="config.${path}.rpm=parseInt(this.value);updateConfig()"`;
+            return `
+            <div class="input-row">
+                <div class="input-col"><label class="input-label" data-i18n="input_rpm">RPM</label><input type="number" value="${data.rpm || 0}" ${disabledAttr} ${disabled ? '' : `onchange="config.${path}.rpm=parseInt(this.value);updateConfig()"`}></div>
+                <div class="input-col"><label class="input-label" data-i18n="input_rph">RPH</label><input type="number" value="${data.rph || 0}" ${disabledAttr} ${disabled ? '' : `onchange="config.${path}.rph=parseInt(this.value);updateConfig()"`}></div>
+            </div>
+            <div class="input-row">
+                <div class="input-col"><label class="input-label" data-i18n="input_win_time">Win Time</label><input type="number" value="${data.win_time || 0}" ${disabledAttr} ${disabled ? '' : `onchange="config.${path}.win_time=parseInt(this.value);updateConfig()"`}></div>
+                <div class="input-col"><label class="input-label" data-i18n="input_win_limit">Win Limit</label><input type="number" value="${data.win_limit || 0}" ${disabledAttr} ${disabled ? '' : `onchange="config.${path}.win_limit=parseInt(this.value);updateConfig()"`}></div>
+                <div class="input-col"><label class="input-label" data-i18n="input_clip">Clip</label><input type="number" value="${data.clip || 0}" ${disabledAttr} ${disabled ? '' : `onchange="config.${path}.clip=parseInt(this.value);updateConfig()"`}></div>
+            </div>`;
+        }
+
+        function renderModelGroups(preserveState = false) {
+            const container = document.getElementById('model_groups_container');
+
+            // Save open/closed state of cards before re-rendering
+            let openStates = [];
+            if (preserveState) {
+                container.querySelectorAll('.card').forEach((card, idx) => {
+                    openStates[idx] = card.classList.contains('open');
+                });
+            }
+
+            container.innerHTML = '';
+            config.model_groups.forEach((group, i) => {
+                const canDelete = group.id !== 'default';
+                const isOpen = preserveState && openStates[i] ? 'open' : '';
+                container.innerHTML += `
+            <div class="card ${isOpen}">
                 <div class="card-header" onclick="toggleCard(this)">
                     <h3>
-                        <input type="text" value="${tier.tier_name || `Model Tier ${tier.tier_id}`}" 
-                               id="mt_${i}_name" 
-                               onchange="config.model_tiers[${i}].tier_name=this.value;updateConfig();"
-                               style="background:transparent;border:none;font-size:1.4rem;font-weight:600;width:auto;padding:0;margin:0;color:inherit"
-                               onclick="event.stopPropagation()">
-                        <span style="font-weight:normal; font-size:0.8rem; opacity:0.7">(ID: ${tier.tier_id})</span>
+                        <span style="font-weight:600; font-size:1.2rem">${group.name}</span>
+                        <span style="font-weight:normal; font-size:0.8rem; opacity:0.7; margin-left:10px">(ID: ${group.id})</span>
                     </h3>
                     <span class="icon chevron">▼</span>
                 </div>
                 <div class="card-body">
-                    ${canDelete ? `<button class="btn-danger" onclick="removeModelTier(${i})" style="width:100%;margin-bottom:15px" data-i18n="btn_delete_tier">🗑 Delete This Tier</button>` : ''}
+                    ${canDelete ? `<button class="btn-danger" onclick="removeModelGroup(${i})" style="width:100%;margin-bottom:15px" data-i18n="btn_delete">🗑 Delete Group</button>` : ''}
                     
                     <div class="input-row">
-                        <div class="input-col"><label class="input-label" data-i18n="input_rpm">RPM</label><input type="number" id="mt_${i}_rpm" onchange="updateConfig()"></div>
-                        <div class="input-col"><label class="input-label" data-i18n="input_rph">RPH</label><input type="number" id="mt_${i}_rph" onchange="updateConfig()"></div>
-                    </div>
-                    <div class="input-row">
-                        <div class="input-col"><label class="input-label" data-i18n="input_win_time">Win Time</label><input type="number" id="mt_${i}_win_time" onchange="updateConfig()"></div>
-                        <div class="input-col"><label class="input-label" data-i18n="input_win_limit">Win Limit</label><input type="number" id="mt_${i}_win_limit" onchange="updateConfig()"></div>
-                        <div class="input-col"><label class="input-label" data-i18n="input_clip">Clip</label><input type="number" id="mt_${i}_clip" onchange="updateConfig()"></div>
-                    </div>
-                    
-                    <div style="margin-top:20px;">
-                         <label class="input-label" data-i18n="model_list">Models</label>
-                         <div id="mt_${i}_models_tags" class="tag-container"></div>
-                         <div class="tag-input-wrapper">
-                            <input type="text" id="mt_${i}_models_input" placeholder="model_id" onkeydown="handleTagInput(event, 'model_tiers.${i}.models', 'mt_${i}_models_tags')">
-                            <button class="btn-add" onclick="addTagFromInput('mt_${i}_models_input', 'model_tiers.${i}.models', 'mt_${i}_models_tags')">+</button>
-                         </div>
+                        <div class="input-col">
+                            <label class="input-label" data-i18n="group_name">Group Name</label>
+                            <input type="text" value="${group.name}" onchange="config.model_groups[${i}].name=this.value;updateConfig()">
+                        </div>
+                        <div class="input-col">
+                            <label class="input-label" data-i18n="group_id">Group ID</label>
+                            <input type="text" value="${group.id}" onchange="config.model_groups[${i}].id=this.value;updateConfig()" ${!canDelete ? 'disabled' : ''}>
+                        </div>
                     </div>
 
-                    <div id="mt_${i}_access_area" style="margin-top:20px; border-top:1px solid var(--border); padding-top:15px;" class="hidden">
-                        <div class="toggle-row">
-                            <div class="label-text" data-i18n="model_wl_mode">Mode</div>
-                            <div style="font-size:0.8rem; font-weight:bold" id="mt_${i}_mode_txt">Whitelist</div>
-                            <label class="switch"><input type="checkbox" id="mt_${i}_wl_mode" onchange="updateConfig()"><span class="slider"></span></label>
-                        </div>
-                        <label class="input-label" data-i18n="access_list">Access List</label>
-                        <div id="mt_${i}_access_tags" class="tag-container"></div>
-                        <div class="tag-input-wrapper">
-                            <input type="text" id="mt_${i}_access_input" placeholder="user@email.com" onkeydown="handleTagInput(event, 'model_tiers.${i}.access_list', 'mt_${i}_access_tags')">
-                            <button class="btn-add" onclick="addTagFromInput('mt_${i}_access_input', 'model_tiers.${i}.access_list', 'mt_${i}_access_tags')">+</button>
-                        </div>
+                    <div style="margin-top:20px;">
+                         <label class="input-label" data-i18n="model_list">Models</label>
+                         <div id="mg_${i}_models_tags" class="tag-container"></div>
+                         <div class="tag-input-wrapper">
+                            <input type="text" id="mg_${i}_models_input" placeholder="model_id" onkeydown="handleTagInput(event, 'model_groups.${i}.models', 'mg_${i}_models_tags')">
+                            <button class="btn-add" onclick="addTagFromInput('mg_${i}_models_input', 'model_groups.${i}.models', 'mg_${i}_models_tags')">+</button>
+                         </div>
                     </div>
                 </div>
             </div>`;
             });
 
-            // 添加新Model Tier按钮
-            mtContainer.innerHTML += `
+            container.innerHTML += `
                 <div style="text-align:center; margin-top:20px">
-                    <button class="btn-secondary" onclick="addModelTier()" style="padding:12px 24px" data-i18n="btn_add_model_tier">➕ Add New Model Tier</button>
+                    <button class="btn-secondary" onclick="addModelGroup()" style="padding:12px 24px" data-i18n="btn_add_model_group">➕ Add Model Group</button>
                 </div>`;
 
-            // ======= 3. Ban Reasons (动态数组) =======
+            // Re-apply language after rendering
+            applyLanguageToDynamicContent();
+        }
+
+        function renderBanReasons() {
             const banContainer = document.getElementById('ban_container');
             banContainer.innerHTML = '';
             config.ban_reasons.forEach((reason, i) => {
@@ -2096,13 +2230,13 @@
             </div>`;
             });
 
-            // 添加新封禁理由按钮
             banContainer.innerHTML += `
                 <div style="text-align:center; margin-top:10px">
                     <button class="btn-secondary" onclick="addBanReason()" style="padding:8px 16px" data-i18n="btn_add_ban_reason">➕ Add Ban Reason</button>
                 </div>`;
+        }
 
-            // ======= 4. Ads (动态数组) =======
+        function renderAds() {
             const adsContainer = document.getElementById('ads_container');
             adsContainer.innerHTML = '';
             config.ads.content.forEach((ad, i) => {
@@ -2116,11 +2250,68 @@
                 </div>`;
             });
 
-            // 添加新广告按钮
             adsContainer.innerHTML += `
                 <div style="text-align:center; margin-top:10px">
                     <button class="btn-secondary" onclick="addAd()" style="padding:8px 16px" data-i18n="btn_add_ad">➕ Add Advertisement</button>
                 </div>`;
+        }
+
+        // Helper functions
+        function addPermissionOverride(groupIndex, modelGroupId) {
+            config.user_groups[groupIndex].permissions[modelGroupId] = {
+                ...config.user_groups[groupIndex].default_permissions
+            };
+            renderUserGroups(true); // Re-render with state preservation
+            updateConfig();
+        }
+
+        function removePermissionOverride(groupIndex, modelGroupId) {
+            delete config.user_groups[groupIndex].permissions[modelGroupId];
+            renderUserGroups(true); // Re-render with state preservation
+            updateConfig();
+        }
+
+        function addUserGroup() {
+            config.user_groups.push({
+                id: `group_${Date.now()}`,
+                name: curLang === 'zh' ? '新用户组' : 'New Group',
+                priority: 0,
+                emails: [],
+                default_permissions: { enabled: false, rpm: 0, rph: 0, win_time: 0, win_limit: 0, clip: 0 },
+                permissions: {}
+            });
+            renderUserGroups(true); // Create DOM elements first, preserve state
+            syncUI(true); // Skip JSON editor update to prevent issues
+            localStorage.setItem('oag_config_v4', JSON.stringify(config));
+        }
+
+        function removeUserGroup(index) {
+            const confirmMsg = curLang === 'zh' ? '确定要删除此用户组吗？' : 'Are you sure?';
+            if (confirm(confirmMsg)) {
+                config.user_groups.splice(index, 1);
+                renderUserGroups(true);
+                updateConfig();
+            }
+        }
+
+        function addModelGroup() {
+            config.model_groups.push({
+                id: `group_${Date.now()}`,
+                name: curLang === 'zh' ? '新模型组' : 'New Models',
+                models: []
+            });
+            renderModelGroups(true); // Create DOM elements first, preserve state
+            syncUI(true); // Skip JSON editor update to prevent issues
+            localStorage.setItem('oag_config_v4', JSON.stringify(config));
+        }
+
+        function removeModelGroup(index) {
+            const confirmMsg = curLang === 'zh' ? '确定要删除此模型组吗？' : 'Are you sure?';
+            if (confirm(confirmMsg)) {
+                config.model_groups.splice(index, 1);
+                renderModelGroups(true);
+                updateConfig();
+            }
         }
 
         function syncUI(fromJsonEditor = false) {
@@ -2143,51 +2334,18 @@
             document.getElementById('ex_area').classList.toggle('hidden', !config.exemption.enabled);
             renderTags(config.exemption.emails, 'ex_tags', 'exemption.emails');
 
-            // Priority
-            document.getElementById('prio_user').checked = config.priority ? config.priority.user_priority : false;
-
-            // User Tiers
-            document.getElementById('global_limit').checked = config.global_limit.enabled;
-            config.user_tiers.forEach((t, i) => {
-                document.getElementById(`ut_${i}_enabled`).checked = t.enabled;
-                document.getElementById(`ut_${i}_rpm`).value = t.rpm;
-                document.getElementById(`ut_${i}_rph`).value = t.rph;
-                document.getElementById(`ut_${i}_win_time`).value = t.win_time;
-                document.getElementById(`ut_${i}_win_limit`).value = t.win_limit;
-                document.getElementById(`ut_${i}_clip`).value = t.clip;
-                document.getElementById(`ut_${i}_deny_enabled`).checked = t.deny_model_enabled;
-                document.getElementById(`ut_${i}_deny_area`).classList.toggle('hidden', !t.deny_model_enabled);
-                // 新增: 同步单独的 user_priority
-                const priorityEl = document.getElementById(`ut_${i}_user_priority`);
-                if (priorityEl) {
-                    priorityEl.checked = t.user_priority || false;
-                    priorityEl.disabled = config.priority && config.priority.user_priority; // 全局开启时禁用
-                }
-                renderTags(t.deny_models, `ut_${i}_deny_tags`, `user_tiers.${i}.deny_models`);
-                renderTags(t.emails, `ut_${i}_users_tags`, `user_tiers.${i}.emails`);
+            // Groups
+            config.user_groups.forEach((g, i) => {
+                const tagsEl = document.getElementById(`ug_${i}_users_tags`);
+                if (tagsEl) renderTags(g.emails, `ug_${i}_users_tags`, `user_groups.${i}.emails`);
             });
 
-            // Model Tiers
-            const matchTiers = config.model_tiers_config.match_tiers;
-            document.getElementById('match_tiers').checked = matchTiers;
-            config.model_tiers.forEach((t, i) => {
-                document.getElementById(`mt_${i}_rpm`).value = t.rpm;
-                document.getElementById(`mt_${i}_rph`).value = t.rph;
-                document.getElementById(`mt_${i}_win_time`).value = t.win_time;
-                document.getElementById(`mt_${i}_win_limit`).value = t.win_limit;
-                document.getElementById(`mt_${i}_clip`).value = t.clip;
-                renderTags(t.models, `mt_${i}_models_tags`, `model_tiers.${i}.models`);
-
-                // Access control logic visibility
-                const acDiv = document.getElementById(`mt_${i}_access_area`);
-                acDiv.classList.toggle('hidden', matchTiers);
-
-                document.getElementById(`mt_${i}_wl_mode`).checked = t.mode_whitelist;
-                document.getElementById(`mt_${i}_mode_txt`).innerText = t.mode_whitelist ? (curLang === 'zh' ? '白名单' : 'Whitelist') : (curLang === 'zh' ? '黑名单' : 'Blacklist');
-                renderTags(t.access_list, `mt_${i}_access_tags`, `model_tiers.${i}.access_list`);
+            config.model_groups.forEach((g, i) => {
+                const tagsEl = document.getElementById(`mg_${i}_models_tags`);
+                if (tagsEl) renderTags(g.models, `mg_${i}_models_tags`, `model_groups.${i}.models`);
             });
 
-            // Bans - 改为动态数组
+            // Bans
             config.ban_reasons.forEach((reason, i) => {
                 renderTags(reason.emails, `ban_${i}_tags`, `ban_reasons.${i}.emails`);
                 const msgEl = document.getElementById(`ban_${i}_msg`);
@@ -2212,13 +2370,12 @@
 
             document.getElementById('ads_enabled').checked = config.ads.enabled;
             document.getElementById('ads_container').classList.toggle('hidden', !config.ads.enabled);
-            // Ads - 改为动态数组
             config.ads.content.forEach((ad, i) => {
                 const adEl = document.getElementById(`ad_${i}`);
                 if (adEl) adEl.value = ad;
             });
 
-            // Custom Strings (New)
+            // Custom Strings
             if (config.custom_strings) {
                 document.getElementById('cs_whitelist_deny').value = config.custom_strings.whitelist_deny;
                 document.getElementById('cs_tier_mismatch').value = config.custom_strings.tier_mismatch;
@@ -2228,7 +2385,7 @@
                 document.getElementById('cs_rate_limit_deny').value = config.custom_strings.rate_limit_deny;
             }
 
-            // JSON Update: Only update text if change came from UI controls, NOT from JSON editor itself
+            // JSON Update
             if (!fromJsonEditor) {
                 document.getElementById('json-editor').value = JSON.stringify(config, null, 2);
             }
@@ -2245,36 +2402,13 @@
             config.whitelist.enabled = document.getElementById('wl_enabled').checked;
             config.exemption.enabled = document.getElementById('ex_enabled').checked;
 
-            // Priority
-            if (!config.priority) config.priority = {};
-            config.priority.user_priority = document.getElementById('prio_user').checked;
+            // Priority (Removed from UI)
+            // config.priority.user_priority = document.getElementById('prio_user').checked;
 
-            config.global_limit.enabled = document.getElementById('global_limit').checked;
+            // Global Limit (Removed from UI)
+            // config.global_limit.enabled = document.getElementById('global_limit').checked;
 
-            config.user_tiers.forEach((t, i) => {
-                t.enabled = document.getElementById(`ut_${i}_enabled`).checked;
-                t.rpm = Number(document.getElementById(`ut_${i}_rpm`).value);
-                t.rph = Number(document.getElementById(`ut_${i}_rph`).value);
-                t.win_time = Number(document.getElementById(`ut_${i}_win_time`).value);
-                t.win_limit = Number(document.getElementById(`ut_${i}_win_limit`).value);
-                t.clip = Number(document.getElementById(`ut_${i}_clip`).value);
-                t.deny_model_enabled = document.getElementById(`ut_${i}_deny_enabled`).checked;
-                // 新增: 收集 user_priority
-                const priorityEl = document.getElementById(`ut_${i}_user_priority`);
-                if (priorityEl) {
-                    t.user_priority = priorityEl.checked;
-                }
-            });
-
-            config.model_tiers_config.match_tiers = document.getElementById('match_tiers').checked;
-            config.model_tiers.forEach((t, i) => {
-                t.rpm = Number(document.getElementById(`mt_${i}_rpm`).value);
-                t.rph = Number(document.getElementById(`mt_${i}_rph`).value);
-                t.win_time = Number(document.getElementById(`mt_${i}_win_time`).value);
-                t.win_limit = Number(document.getElementById(`mt_${i}_win_limit`).value);
-                t.clip = Number(document.getElementById(`mt_${i}_clip`).value);
-                t.mode_whitelist = document.getElementById(`mt_${i}_wl_mode`).checked;
-            });
+            // Groups are updated inline via onchange handlers, so no need to collect here.
 
             // Bans - 改为动态数组
             config.ban_reasons.forEach((reason, i) => {
@@ -2360,84 +2494,16 @@
 
         // ===== 新增: 动态 Tier/Ban/Ads 管理函数 =====
 
-        function addUserTier() {
-            const nextId = Math.max(...config.user_tiers.map(t => t.tier_id), -1) + 1;
-            config.user_tiers.push({
-                tier_id: nextId,
-                tier_name: `User Tier ${nextId}`,
-                enabled: false,
-                emails: [],
-                rpm: 0,
-                rph: 0,
-                win_time: 0,
-                win_limit: 0,
-                clip: 0,
-                deny_model_enabled: false,
-                deny_models: [],
-                user_priority: false
-            });
-            renderDynamicSections();
-            syncUI();
-        }
-
-        function removeUserTier(index) {
-            if (config.user_tiers[index].tier_id === 0) {
-                alert(curLang === 'zh' ? '不能删除默认Tier 0!' : 'Cannot delete default Tier 0!');
-                return;
-            }
-            const confirmMsg = curLang === 'zh'
-                ? `确定要删除 "${config.user_tiers[index].tier_name}" (ID: ${config.user_tiers[index].tier_id}) 吗？`
-                : `Delete "${config.user_tiers[index].tier_name}" (ID: ${config.user_tiers[index].tier_id})?`;
-            if (confirm(confirmMsg)) {
-                config.user_tiers.splice(index, 1);
-                renderDynamicSections();
-                syncUI();
-            }
-        }
-
-        function addModelTier() {
-            const nextId = Math.max(...config.model_tiers.map(t => t.tier_id), -1) + 1;
-            config.model_tiers.push({
-                tier_id: nextId,
-                tier_name: `Model Tier ${nextId}`,
-                models: [],
-                rpm: 0,
-                rph: 0,
-                win_time: 0,
-                win_limit: 0,
-                clip: 0,
-                mode_whitelist: true,
-                access_list: []
-            });
-            renderDynamicSections();
-            syncUI();
-        }
-
-        function removeModelTier(index) {
-            if (config.model_tiers[index].tier_id === 0) {
-                alert(curLang === 'zh' ? '不能删除默认Tier 0!' : 'Cannot delete default Tier 0!');
-                return;
-            }
-            const confirmMsg = curLang === 'zh'
-                ? `确定要删除 "${config.model_tiers[index].tier_name}" (ID: ${config.model_tiers[index].tier_id}) 吗？`
-                : `Delete "${config.model_tiers[index].tier_name}" (ID: ${config.model_tiers[index].tier_id})?`;
-            if (confirm(confirmMsg)) {
-                config.model_tiers.splice(index, 1);
-                renderDynamicSections();
-                syncUI();
-            }
-        }
-
         function addBanReason() {
-            const nextId = Date.now(); // 使用时间戳作为唯一ID
+            const nextId = Date.now();
             config.ban_reasons.push({
                 id: `ban_${nextId}`,
                 name: `Ban Reason ${config.ban_reasons.length + 1}`,
                 msg: `Account Suspended`,
                 emails: []
             });
-            renderDynamicSections();
-            syncUI();
+            renderBanReasons();
+            updateConfig();
         }
 
         function removeBanReason(index) {
@@ -2446,36 +2512,27 @@
                 : `Delete ban reason "${config.ban_reasons[index].name}"?`;
             if (confirm(confirmMsg)) {
                 config.ban_reasons.splice(index, 1);
-                renderDynamicSections();
-                syncUI();
+                renderBanReasons();
+                updateConfig();
             }
         }
-
 
         function addAd() {
             config.ads.content.push('');
-            renderDynamicSections();
-            syncUI();
+            renderAds();
+            updateConfig();
         }
 
         function removeAd(index) {
-            if (confirm(curLang === 'zh' ? '确定要删除这条广告吗?' : 'Delete this ad?')) {
+            if (confirm(curLang === 'zh' ? '确定要删除此广告吗？' : 'Delete this ad?')) {
                 config.ads.content.splice(index, 1);
-                renderDynamicSections();
-                syncUI();
+                renderAds();
+                updateConfig();
             }
         }
 
 
-        function updateGlobalPriority() {
-            // 更新全局优先级设置
-            if (!config.priority) config.priority = {};
-            config.priority.user_priority = document.getElementById('prio_user').checked;
 
-            // 重新渲染 User Tiers 部分以显示/隐藏单独的优先级开关
-            renderDynamicSections();
-            syncUI();
-        }
 
         function toggleCard(header) {
             header.parentElement.classList.toggle('open');
@@ -2490,30 +2547,36 @@
             event.currentTarget.classList.add('active');
         }
 
-        function setLang(lang) {
-            curLang = lang;
-            document.getElementById('btn-en').classList.toggle('active', lang === 'en');
-            document.getElementById('btn-zh').classList.toggle('active', lang === 'zh');
-
+        function applyLanguageToDynamicContent() {
+            // Apply language to all elements with data-i18n attribute
             document.querySelectorAll('[data-i18n]').forEach(el => {
                 const key = el.getAttribute('data-i18n');
-                if (i18n[lang][key]) {
+                if (i18n[curLang][key]) {
                     // If it contains HTML tags (like <b>), use innerHTML, otherwise innerText
-                    if (i18n[lang][key].includes('<')) {
-                        el.innerHTML = i18n[lang][key];
+                    if (i18n[curLang][key].includes('<')) {
+                        el.innerHTML = i18n[curLang][key];
                     } else {
-                        el.innerText = i18n[lang][key];
+                        el.innerText = i18n[curLang][key];
                     }
                 }
             });
 
             document.querySelectorAll('[data-i18n-placeholder]').forEach(el => {
                 const key = el.getAttribute('data-i18n-placeholder');
-                if (i18n[lang][key]) el.placeholder = i18n[lang][key];
+                if (i18n[curLang][key]) el.placeholder = i18n[curLang][key];
             });
+        }
 
-            // Refresh dynamic UI text (like Whitelist/Blacklist labels in loop)
-            syncUI();
+        function setLang(lang) {
+            curLang = lang;
+            document.getElementById('btn-en').classList.toggle('active', lang === 'en');
+            document.getElementById('btn-zh').classList.toggle('active', lang === 'zh');
+
+            // Apply language to static content
+            applyLanguageToDynamicContent();
+
+            // Re-render dynamic sections with language applied
+            renderDynamicSections(true);
         }
 
         function resetConfig() {
@@ -2569,10 +2632,10 @@
         }
 
         // Expose functions to global scope for HTML inline events
+        // Expose functions to global scope for HTML inline events
         window.toggleSidebar = toggleSidebar;
         window.toggleMobileMenu = toggleMobileMenu;
         window.updateConfig = updateConfig;
-        window.updateGlobalPriority = updateGlobalPriority;
         window.router = router;
         window.toggleCard = toggleCard;
         window.handleTagInput = handleTagInput;
@@ -2582,10 +2645,15 @@
         window.loadFromJSON = loadFromJSON;
         window.copyJSON = copyJSON;
         window.manualReloadJSON = manualReloadJSON;
-        window.addUserTier = addUserTier;
-        window.removeUserTier = removeUserTier;
-        window.addModelTier = addModelTier;
-        window.removeModelTier = removeModelTier;
+
+        // Group System
+        window.addUserGroup = addUserGroup;
+        window.removeUserGroup = removeUserGroup;
+        window.addModelGroup = addModelGroup;
+        window.removeModelGroup = removeModelGroup;
+        window.addPermissionOverride = addPermissionOverride;
+        window.removePermissionOverride = removePermissionOverride;
+
         window.addBanReason = addBanReason;
         window.removeBanReason = removeBanReason;
         window.addAd = addAd;
@@ -2602,13 +2670,13 @@
         const AI_SYSTEM_PROMPT = `You are an expert AI assistant specialized in helping users configure and use OpenAccess Guard (OAG), a powerful filter plugin for Open WebUI. Your role is to:
 
 1. **Explain OAG Features**: Help users understand all features including:
-   - User Tier System (Tier 0-5) for different permission levels
-   - Model Tier System for controlling model access
+   - **User Groups**: Categorize users (e.g., Free, Premium) with specific permissions.
+   - **Model Groups**: Categorize models (e.g., Basic, Advanced).
+   - **Permissions Matrix**: Define access rules between User Groups and Model Groups.
    - Rate limiting (RPM, RPH, sliding windows)
    - Ban system with custom reasons
    - Whitelist/Blacklist systems
    - Fallback/downgrade system
-   - Priority systems (user vs model limits)
    - Context clipping
    - Logging and ads systems
 
@@ -2619,24 +2687,16 @@
   "auth": {"enabled": false, "providers": [], "deny_msg": ""},
   "whitelist": {"enabled": false, "emails": []},
   "exemption": {"enabled": false, "emails": []},
-  "priority": {"user_priority": false},
-  "global_limit": {"enabled": false},
-  "user_tiers": [
+  "user_groups": [
     {
-      "tier_id": 0, "tier_name": "Default", "enabled": true,
-      "emails": [], "rpm": 0, "rph": 0,
-      "win_time": 0, "win_limit": 0, "clip": 0,
-      "deny_model_enabled": false, "deny_models": [],
-      "user_priority": false
+      "id": "default", "name": "Default Group", "priority": 0, "emails": [],
+      "default_permissions": {"enabled": true, "rpm": 0, "rph": 0, "win_time": 0, "win_limit": 0, "clip": 0},
+      "permissions": {}
     }
   ],
-  "model_tiers_config": {"match_tiers": false},
-  "model_tiers": [
+  "model_groups": [
     {
-      "tier_id": 0, "tier_name": "Default", "enabled": false,
-      "models": [], "rpm": 0, "rph": 0,
-      "win_time": 0, "win_limit": 0, "clip": 0,
-      "mode_whitelist": false, "access_list": []
+      "id": "default", "name": "Default Models", "models": []
     }
   ],
   "ban_reasons": [],
@@ -2645,19 +2705,15 @@
   "ads": {"enabled": false, "content": []},
   "custom_strings": {
     "whitelist_deny": "Access Denied: Not in whitelist.",
-    "tier_mismatch": "Tier Mismatch. User Tier {u_tier} cannot access Model Tier {m_tier}",
-    "user_deny_model": "Tier {u_tier} users cannot use model {model_id}",
-    "model_wl_deny": "Access Denied to Tier {m_tier} Model (Whitelist)",
-    "model_bl_deny": "Access Denied to Tier {m_tier} Model (Blacklist)",
     "rate_limit_deny": "Rate Limit Exceeded: {reason}"
   }
 }
 \`\`\`
 
 3. **Provide Examples**: Offer practical configuration examples for common scenarios:
-   - Free vs paid user tiers
+   - Free vs paid user groups
    - Rate limiting for abuse prevention
-   - Model access control
+   - Model access control via groups
    - Ban management
    
 4. **Troubleshoot**: Help diagnose configuration issues and suggest fixes.
