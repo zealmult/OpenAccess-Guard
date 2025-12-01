@@ -669,6 +669,271 @@
             margin-top: 0;
             font-size: 0.95rem;
         }
+
+        /* AI Assistant Styles */
+        .ai-chat-container {
+            display: flex;
+            flex-direction: column;
+            height: calc(100vh - 120px);
+            max-height: 700px;
+        }
+
+        .ai-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 15px 20px;
+            background: var(--bg-card);
+            border-radius: var(--radius) var(--radius) 0 0;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .ai-model-selector {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+
+        .ai-model-selector select {
+            padding: 8px 12px;
+            border-radius: 6px;
+            border: 1px solid var(--border);
+            background: var(--bg-body);
+            color: var(--text-main);
+            font-size: 0.9rem;
+        }
+
+        .ai-settings-btn {
+            background: var(--bg-body);
+            border: 1px solid var(--border);
+            padding: 8px 12px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.9rem;
+            transition: 0.2s;
+        }
+
+        .ai-settings-btn:hover {
+            background: var(--border);
+        }
+
+        .ai-messages {
+            flex: 1;
+            overflow-y: auto;
+            padding: 20px;
+            background: var(--bg-body);
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+
+        .ai-message {
+            display: flex;
+            gap: 10px;
+            max-width: 80%;
+        }
+
+        .ai-message.user {
+            align-self: flex-end;
+            flex-direction: row-reverse;
+        }
+
+        .ai-message-avatar {
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            background: var(--primary);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1rem;
+            flex-shrink: 0;
+        }
+
+        .ai-message.user .ai-message-avatar {
+            background: var(--success);
+        }
+
+        .ai-message-content {
+            background: var(--bg-card);
+            padding: 12px 16px;
+            border-radius: 12px;
+            line-height: 1.6;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+        }
+
+        .ai-message.user .ai-message-content {
+            background: var(--primary);
+            color: white;
+        }
+
+        .ai-input-area {
+            padding: 15px 20px;
+            background: var(--bg-card);
+            border-radius: 0 0 var(--radius) var(--radius);
+            border-top: 1px solid var(--border);
+        }
+
+        .ai-input-wrapper {
+            display: flex;
+            gap: 10px;
+        }
+
+        .ai-input {
+            flex: 1;
+            padding: 12px;
+            border-radius: 8px;
+            border: 1px solid var(--border);
+            background: var(--bg-body);
+            color: var(--text-main);
+            font-size: 1rem;
+            resize: none;
+            min-height: 48px;
+            max-height: 120px;
+        }
+
+        .ai-send-btn,
+        .ai-clear-btn {
+            padding: 12px 20px;
+            border-radius: 8px;
+            border: none;
+            cursor: pointer;
+            font-weight: 600;
+            transition: 0.2s;
+        }
+
+        .ai-send-btn {
+            background: var(--primary);
+            color: white;
+        }
+
+        .ai-send-btn:hover:not(:disabled) {
+            background: var(--primary-hover);
+        }
+
+        .ai-send-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .ai-clear-btn {
+            background: var(--bg-body);
+            border: 1px solid var(--border);
+            color: var(--text-main);
+        }
+
+        .ai-clear-btn:hover {
+            background: var(--border);
+        }
+
+        /* AI Settings Modal */
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.5);
+            z-index: 1000;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .modal.active {
+            display: flex;
+        }
+
+        .modal-content {
+            background: var(--bg-card);
+            border-radius: var(--radius);
+            padding: 30px;
+            max-width: 500px;
+            width: 90%;
+            max-height: 80vh;
+            overflow-y: auto;
+        }
+
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+
+        .modal-close {
+            background: none;
+            border: none;
+            font-size: 1.5rem;
+            cursor: pointer;
+            color: var(--text-secondary);
+        }
+
+        .modal-close:hover {
+            color: var(--text-main);
+        }
+
+        .model-list {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            margin-top: 10px;
+        }
+
+        .model-item {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+
+        .model-item input {
+            flex: 1;
+        }
+
+        .btn-remove {
+            background: var(--danger);
+            color: white;
+            border: none;
+            padding: 8px 12px;
+            border-radius: 6px;
+            cursor: pointer;
+        }
+
+        .btn-remove:hover {
+            opacity: 0.8;
+        }
+
+        .btn-add-model {
+            margin-top: 10px;
+            background: var(--success);
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: 600;
+        }
+
+        .btn-add-model:hover {
+            opacity: 0.9;
+        }
+
+        .btn-save-settings {
+            background: var(--primary);
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 600;
+            width: 100%;
+            margin-top: 20px;
+        }
+
+        .btn-save-settings:hover {
+            background: var(--primary-hover);
+        }
     </style>
 </head>
 
@@ -850,10 +1115,12 @@
                         <div class="toggle-row">
                             <div>
                                 <div class="label-text" data-i18n="prio_user">Global User Limit Priority</div>
-                                <div class="description" data-i18n="prio_user_desc">If enabled globally, ALL user tiers will prioritize user limits over model limits. Individual tier priority switches will be disabled.</div>
+                                <div class="description" data-i18n="prio_user_desc">If enabled globally, ALL user tiers
+                                    will prioritize user limits over model limits. Individual tier priority switches
+                                    will be disabled.</div>
                             </div>
-                            <label class="switch"><input type="checkbox" id="prio_user" onchange="updateGlobalPriority()"><span
-                                    class="slider"></span></label>
+                            <label class="switch"><input type="checkbox" id="prio_user"
+                                    onchange="updateGlobalPriority()"><span class="slider"></span></label>
                         </div>
                     </div>
                 </div>>
@@ -1128,6 +1395,44 @@
                 </div>
             </div>
 
+            <!-- AI ASSISTANT PAGE -->
+            <div id="ai-assistant" class="page">
+                <h1 data-i18n="ai_title">AI Assistant</h1>
+                <p data-i18n="ai_desc">Get help with OpenAccess Guard configuration, JSON generation, and feature
+                    explanations.</p>
+
+                <div class="card open">
+                    <div class="card-body" style="display:block; padding:20px">
+                        <div class="ai-chat-container">
+                            <div class="ai-header">
+                                <div class="ai-model-selector">
+                                    <label style="font-weight:600; font-size:0.9rem"
+                                        data-i18n="ai_model_label">Model:</label>
+                                    <select id="ai-model-select"></select>
+                                </div>
+                                <button class="ai-settings-btn" onclick="openAISettings()" data-i18n="ai_settings_btn">⚙
+                                    Settings</button>
+                            </div>
+                            <div class="ai-messages" id="ai-messages"></div>
+                            <div class="ai-input-area">
+                                <div class="ai-input-wrapper">
+                                    <textarea id="ai-input" class="ai-input"
+                                        placeholder="Ask me anything about OpenAccess Guard..."
+                                        data-i18n-placeholder="ai_input_placeholder"
+                                        onkeydown="handleAIInput(event)"></textarea>
+                                    <div style="display:flex; flex-direction:column; gap:8px">
+                                        <button class="ai-send-btn" id="ai-send-btn" onclick="sendAIMessage()"
+                                            data-i18n="ai_send_btn">Send</button>
+                                        <button class="ai-clear-btn" onclick="clearAIContext()"
+                                            data-i18n="ai_clear_btn">Clear</button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
             <!-- INFO PAGE -->
             <div id="info" class="page">
                 <h1 data-i18n="info_title">About</h1>
@@ -1164,11 +1469,46 @@
         </main>
     </div>
 
+    <!-- AI Settings Modal -->
+    <div id="ai-settings-modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 data-i18n="ai_settings_title">AI Settings</h3>
+                <button class="modal-close" onclick="closeAISettings()">×</button>
+            </div>
+            <div>
+                <label class="input-label" data-i18n="ai_api_url">API URL</label>
+                <input type="text" id="ai-api-url" placeholder="https://api.breathai.top">
+
+                <label class="input-label" style="margin-top:15px" data-i18n="ai_api_key">API Key</label>
+                <input type="text" id="ai-api-key" placeholder="sk-...">
+
+                <label class="input-label" style="margin-top:15px" data-i18n="ai_models">Available Models</label>
+                <div id="ai-models-list" class="model-list"></div>
+                <button class="btn-add-model" onclick="addAIModel()" data-i18n="ai_add_model">+ Add Model</button>
+
+                <div class="control-group" style="margin-top:20px">
+                    <div class="toggle-row">
+                        <div>
+                            <div class="label-text" data-i18n="ai_stream">Enable Streaming</div>
+                            <div class="description" data-i18n="ai_stream_desc">Stream responses in real-time</div>
+                        </div>
+                        <label class="switch"><input type="checkbox" id="ai-stream-toggle"><span
+                                class="slider"></span></label>
+                    </div>
+                </div>
+
+                <button class="btn-save-settings" onclick="saveAISettings()" data-i18n="ai_save_settings">Save
+                    Settings</button>
+            </div>
+        </div>
+    </div>
+
     <script>
         // --- Data & State ---
         const i18n = {
             en: {
-                nav_settings: "Settings", nav_tutorial: "Tutorial", nav_about: "About",
+                nav_settings: "Settings", nav_tutorial: "Tutorial", nav_ai: "AI Assistant", nav_about: "About",
                 page_settings_title: "Configuration",
                 settings_banner_hint: "Important: Please read the <b style='text-decoration:underline'>Tutorial</b> on the left sidebar before configuration!",
 
@@ -1235,6 +1575,23 @@
                 tut_ads_title: "Ads System",
                 tut_ads_desc: "Injects advertisement messages into AI responses. You can define up to 10 ad messages, and the system will randomly select one to display via the event emitter during chat generation.",
 
+                // AI Assistant
+                ai_title: "AI Assistant",
+                ai_desc: "Get help with OpenAccess Guard configuration, JSON generation, and feature explanations.",
+                ai_model_label: "Model:",
+                ai_settings_btn: "⚙ Settings",
+                ai_input_placeholder: "Ask me anything about OpenAccess Guard...",
+                ai_send_btn: "Send",
+                ai_clear_btn: "Clear",
+                ai_settings_title: "AI Settings",
+                ai_api_url: "API URL",
+                ai_api_key: "API Key",
+                ai_models: "Available Models",
+                ai_add_model: "+ Add Model",
+                ai_stream: "Enable Streaming",
+                ai_stream_desc: "Stream responses in real-time",
+                ai_save_settings: "Save Settings",
+
                 info_title: "About", info_desc: "The ultimate governance tool for Open WebUI.",
                 ad_breath_title: "🚀 Powered By BreathAI",
                 ad_breath_desc: "Get free access to Claude 4.5, Gemini 3 Pro, GPT-5.1, DeepSeek, and Llama APIs.",
@@ -1248,7 +1605,7 @@
                 btn_delete: "Delete"
             },
             zh: {
-                nav_settings: "配置", nav_tutorial: "教程", nav_about: "关于",
+                nav_settings: "配置", nav_tutorial: "教程", nav_ai: "AI 助手", nav_about: "关于",
                 page_settings_title: "配置编辑器",
                 settings_banner_hint: "重要提示：配置前请务必阅读左侧侧边栏的 <b style='text-decoration:underline'>教程</b>！",
 
@@ -1313,12 +1670,29 @@
                 tut_log_title: "日志系统",
                 tut_log_desc: "开启后，日志将会打印在 Open WebUI 的控制台日志里面。您可以选择记录 Inlet/Outlet/Stream 日志来用于审计或调试。注意：开启 Stream 日志会导致日志量非常大。",
                 tut_ads_title: "广告系统",
-                tut_ads_desc: "开启后，将会使用 Open WebUI 的 event emitter 在用户向 AI 提问的时候展示广告。将会随机展示您配置的 1-10 条广告内容中的一条。",
+                tut_ads_desc: "开启后,将会使用 Open WebUI 的 event emitter 在用户向 AI 提问的时候展示广告。将会随机展示您配置的 1-10 条广告内容中的一条。",
+
+                // AI Assistant (Chinese)
+                ai_title: "AI 助手",
+                ai_desc: "获取 OpenAccess Guard 配置帮助、JSON 生成和功能说明。",
+                ai_model_label: "模型:",
+                ai_settings_btn: "⚙ 设置",
+                ai_input_placeholder: "询问任何关于 OpenAccess Guard 的问题...",
+                ai_send_btn: "发送",
+                ai_clear_btn: "清除",
+                ai_settings_title: "AI 设置",
+                ai_api_url: "API 地址",
+                ai_api_key: "API 密钥",
+                ai_models: "可用模型",
+                ai_add_model: "+ 添加模型",
+                ai_stream: "启用流式传输",
+                ai_stream_desc: "实时流式传输响应",
+                ai_save_settings: "保存设置",
 
                 info_title: "关于", info_desc: "Open WebUI 的高级治理工具。",
                 ad_breath_title: "🚀 由 BreathAI 驱动",
                 ad_breath_desc: "免费使用 Claude 4.5, Gemini 3 Pro, GPT-5.1, DeepSeek 和 Llama API。",
-                ad_breath_link: "前往 breathai.top 开始使用 &rarr;",
+                ad_breath_link: "前往 breathai.top 开始使用",
                 storage_title: "存储管理", storage_desc: "如果遇到配置错误或缓存问题，可清除本地配置。", btn_reset: "重置所有配置",
                 btn_add_user_tier: "➕ 添加新用户等级",
                 btn_add_model_tier: "➕ 添加新模型等级",
@@ -1359,17 +1733,17 @@
         function init() {
             // 只初始化默认 Tier 0
             if (config.user_tiers.length === 0) {
-                config.user_tiers.push({ 
-                    tier_id: 0, tier_name: "Default", enabled: true, rpm: 0, rph: 0, 
-                    win_time: 0, win_limit: 0, clip: 0, deny_model_enabled: false, 
-                    deny_models: [], emails: [], user_priority: false 
+                config.user_tiers.push({
+                    tier_id: 0, tier_name: "Default", enabled: true, rpm: 0, rph: 0,
+                    win_time: 0, win_limit: 0, clip: 0, deny_model_enabled: false,
+                    deny_models: [], emails: [], user_priority: false
                 });
             }
             if (config.model_tiers.length === 0) {
-                config.model_tiers.push({ 
-                    tier_id: 0, tier_name: "Default", rpm: 0, rph: 0, 
-                    win_time: 0, win_limit: 0, clip: 0, models: [], 
-                    mode_whitelist: true, access_list: [] 
+                config.model_tiers.push({
+                    tier_id: 0, tier_name: "Default", rpm: 0, rph: 0,
+                    win_time: 0, win_limit: 0, clip: 0, models: [],
+                    mode_whitelist: true, access_list: []
                 });
             }
 
@@ -1378,7 +1752,7 @@
             if (saved) {
                 try {
                     const parsed = JSON.parse(saved);
-                    
+
                     // 数据迁移: 检测旧的 ban_system 对象格式
                     if (parsed.ban_system && !Array.isArray(parsed.ban_system)) {
                         parsed.ban_reasons = [];
@@ -1395,7 +1769,7 @@
                         }
                         delete parsed.ban_system;
                     }
-                    
+
                     // 确保 user_tiers 有 user_priority 字段
                     if (parsed.user_tiers) {
                         parsed.user_tiers.forEach(tier => {
@@ -1410,7 +1784,7 @@
                             }
                         });
                     }
-                    
+
                     // 确保 model_tiers 有 tier_id 和 tier_name
                     if (parsed.model_tiers) {
                         parsed.model_tiers.forEach(tier => {
@@ -1422,9 +1796,9 @@
                             }
                         });
                     }
-                    
+
                     config = { ...config, ...parsed };
-                    
+
                     // Ensure new keys exist if loading old config
                     if (!config.priority) config.priority = { user_priority: false };
                     if (!config.ban_reasons) config.ban_reasons = [];
@@ -1448,11 +1822,11 @@
 
         function renderDynamicSections() {
             const globalPriorityEnabled = config.priority && config.priority.user_priority;
-            
+
             // ======= 1. User Tiers =======
             const utContainer = document.getElementById('user_tiers_container');
             utContainer.innerHTML = '';
-            
+
             config.user_tiers.forEach((tier, i) => {
                 const canDelete = tier.tier_id !== 0; // Tier 0 不可删除
                 utContainer.innerHTML += `
@@ -1526,7 +1900,7 @@
                 </div>
             </div>`;
             });
-            
+
             // 添加新User Tier按钮
             utContainer.innerHTML += `
                 <div style="text-align:center; margin-top:20px">
@@ -1589,7 +1963,7 @@
                 </div>
             </div>`;
             });
-            
+
             // 添加新Model Tier按钮
             mtContainer.innerHTML += `
                 <div style="text-align:center; margin-top:20px">
@@ -1603,7 +1977,7 @@
                 banContainer.innerHTML += `
             <div style="border-bottom:1px solid var(--border); padding-bottom:15px; margin-bottom:15px">
                  <div style="font-weight:600; margin-bottom:10px; cursor:pointer; display:flex; justify-content:space-between; align-items:center" onclick="this.nextElementSibling.classList.toggle('hidden')">
-                    <input type="text" value="${reason.name || `Reason ${i+1}`}" 
+                    <input type="text" value="${reason.name || `Reason ${i + 1}`}" 
                            id="ban_${i}_name" 
                            onchange="config.ban_reasons[${i}].name=this.value;updateConfig();"
                            style="background:transparent;border:none;font-weight:600;font-size:1rem;width:auto;padding:0;margin:0;color:inherit"
@@ -1625,7 +1999,7 @@
                  </div>
             </div>`;
             });
-            
+
             // 添加新封禁理由按钮
             banContainer.innerHTML += `
                 <div style="text-align:center; margin-top:10px">
@@ -1645,7 +2019,7 @@
                     <button class="btn-danger" onclick="removeAd(${i})" style="padding:8px 12px; margin-top:20px" data-i18n="btn_delete">Delete</button>
                 </div>`;
             });
-            
+
             // 添加新广告按钮
             adsContainer.innerHTML += `
                 <div style="text-align:center; margin-top:10px">
@@ -1889,7 +2263,7 @@
         }
 
         // ===== 新增: 动态 Tier/Ban/Ads 管理函数 =====
-        
+
         function addUserTier() {
             const nextId = Math.max(...config.user_tiers.map(t => t.tier_id), -1) + 1;
             config.user_tiers.push({
@@ -1915,8 +2289,8 @@
                 alert(curLang === 'zh' ? '不能删除默认Tier 0!' : 'Cannot delete default Tier 0!');
                 return;
             }
-            const confirmMsg = curLang === 'zh' 
-                ? `确定要删除 "${config.user_tiers[index].tier_name}" (ID: ${config.user_tiers[index].tier_id}) 吗？` 
+            const confirmMsg = curLang === 'zh'
+                ? `确定要删除 "${config.user_tiers[index].tier_name}" (ID: ${config.user_tiers[index].tier_id}) 吗？`
                 : `Delete "${config.user_tiers[index].tier_name}" (ID: ${config.user_tiers[index].tier_id})?`;
             if (confirm(confirmMsg)) {
                 config.user_tiers.splice(index, 1);
@@ -1948,8 +2322,8 @@
                 alert(curLang === 'zh' ? '不能删除默认Tier 0!' : 'Cannot delete default Tier 0!');
                 return;
             }
-            const confirmMsg = curLang === 'zh' 
-                ? `确定要删除 "${config.model_tiers[index].tier_name}" (ID: ${config.model_tiers[index].tier_id}) 吗？` 
+            const confirmMsg = curLang === 'zh'
+                ? `确定要删除 "${config.model_tiers[index].tier_name}" (ID: ${config.model_tiers[index].tier_id}) 吗？`
                 : `Delete "${config.model_tiers[index].tier_name}" (ID: ${config.model_tiers[index].tier_id})?`;
             if (confirm(confirmMsg)) {
                 config.model_tiers.splice(index, 1);
@@ -1971,8 +2345,8 @@
         }
 
         function removeBanReason(index) {
-            const confirmMsg = curLang === 'zh' 
-                ? `确定要删除封禁理由 "${config.ban_reasons[index].name}" 吗？` 
+            const confirmMsg = curLang === 'zh'
+                ? `确定要删除封禁理由 "${config.ban_reasons[index].name}" 吗？`
                 : `Delete ban reason "${config.ban_reasons[index].name}"?`;
             if (confirm(confirmMsg)) {
                 config.ban_reasons.splice(index, 1);
@@ -2001,7 +2375,7 @@
             // 更新全局优先级设置
             if (!config.priority) config.priority = {};
             config.priority.user_priority = document.getElementById('prio_user').checked;
-            
+
             // 重新渲染 User Tiers 部分以显示/隐藏单独的优先级开关
             renderDynamicSections();
             syncUI();
@@ -2120,6 +2494,344 @@
         window.removeBanReason = removeBanReason;
         window.addAd = addAd;
         window.removeAd = removeAd;
+
+        // ===== AI Assistant Functionality =====
+        let aiSettings = {
+            apiUrl: 'https://api.breathai.top',
+            apiKey: 'sk-qnGAHcb3W4n1yvOFfyQQqguJdFsYLjVYm5zEA1PqC6vAolOh',
+            models: ['gemini-2.5-flash', 'glm-4.5-air'],
+            stream: true
+        };
+        let aiMessages = [];
+        const AI_SYSTEM_PROMPT = `You are an expert AI assistant specialized in helping users configure and use OpenAccess Guard (OAG), a powerful filter plugin for Open WebUI. Your role is to:
+
+1. **Explain OAG Features**: Help users understand all features including:
+   - User Tier System (Tier 0-5) for different permission levels
+   - Model Tier System for controlling model access
+   - Rate limiting (RPM, RPH, sliding windows)
+   - Ban system with custom reasons
+   - Whitelist/Blacklist systems
+   - Fallback/downgrade system
+   - Priority systems (user vs model limits)
+   - Context clipping
+   - Logging and ads systems
+
+2. **Generate JSON Configurations**: Create complete, valid JSON configurations based on user requirements. Always use this structure:
+\`\`\`json
+{
+  "base": {"enabled": true, "admin_effective": false},
+  "auth": {"enabled": false, "providers": [], "deny_msg": ""},
+  "whitelist": {"enabled": false, "emails": []},
+  "exemption": {"enabled": false, "emails": []},
+  "priority": {"user_priority": false},
+  "global_limit": {"enabled": false},
+  "user_tiers": [
+    {
+      "tier_id": 0, "tier_name": "Default", "enabled": true,
+      "emails": [], "rpm": 0, "rph": 0,
+      "win_time": 0, "win_limit": 0, "clip": 0,
+      "deny_model_enabled": false, "deny_models": [],
+      "user_priority": false
+    }
+  ],
+  "model_tiers_config": {"match_tiers": false},
+  "model_tiers": [
+    {
+      "tier_id": 0, "tier_name": "Default", "enabled": false,
+      "models": [], "rpm": 0, "rph": 0,
+      "win_time": 0, "win_limit": 0, "clip": 0,
+      "mode_whitelist": false, "access_list": []
+    }
+  ],
+  "ban_reasons": [],
+  "fallback": {"enabled": false, "model": "", "notify": true, "notify_msg": ""},
+  "logging": {"enabled": true, "oag_log": true, "inlet": false, "outlet": false, "stream": false, "user_dict": false},
+  "ads": {"enabled": false, "content": []},
+  "custom_strings": {
+    "whitelist_deny": "Access Denied: Not in whitelist.",
+    "tier_mismatch": "Tier Mismatch. User Tier {u_tier} cannot access Model Tier {m_tier}",
+    "user_deny_model": "Tier {u_tier} users cannot use model {model_id}",
+    "model_wl_deny": "Access Denied to Tier {m_tier} Model (Whitelist)",
+    "model_bl_deny": "Access Denied to Tier {m_tier} Model (Blacklist)",
+    "rate_limit_deny": "Rate Limit Exceeded: {reason}"
+  }
+}
+\`\`\`
+
+3. **Provide Examples**: Offer practical configuration examples for common scenarios:
+   - Free vs paid user tiers
+   - Rate limiting for abuse prevention
+   - Model access control
+   - Ban management
+   
+4. **Troubleshoot**: Help diagnose configuration issues and suggest fixes.
+
+Be concise, accurate, and helpful. When generating JSON, always provide the complete structure. When explaining, be clear and use examples.`;
+
+        function init() {
+            const saved = localStorage.getItem('oag_config_v4');
+            if (saved) {
+                try {
+                    config = JSON.parse(saved);
+                } catch (e) {
+                    config = JSON.parse(JSON.stringify(DEFAULT_CONFIG));
+                }
+            } else {
+                config = JSON.parse(JSON.stringify(DEFAULT_CONFIG));
+            }
+
+            loadAISettings(); // Initialize AI assistant
+            syncUI();
+            setLang('zh');
+        }
+
+        function loadAISettings() {
+            const saved = localStorage.getItem('oag_ai_settings');
+            if (saved) {
+                try {
+                    aiSettings = JSON.parse(saved);
+                } catch (e) { }
+            }
+            syncAISettings();
+        }
+
+        function saveAISettings() {
+            const apiUrl = document.getElementById('ai-api-url').value.trim();
+            const apiKey = document.getElementById('ai-api-key').value.trim();
+            const stream = document.getElementById('ai-stream-toggle').checked;
+
+            const models = [];
+            document.querySelectorAll('#ai-models-list input').forEach(input => {
+                const val = input.value.trim();
+                if (val) models.push(val);
+            });
+
+            if (!apiUrl || !apiKey || models.length === 0) {
+                alert(curLang === 'zh' ? '请填写所有必填字段' : 'Please fill all required fields');
+                return;
+            }
+
+            aiSettings = { apiUrl, apiKey, models, stream };
+            localStorage.setItem('oag_ai_settings', JSON.stringify(aiSettings));
+
+            syncAISettings();
+            closeAISettings();
+            alert(curLang === 'zh' ? '设置已保存' : 'Settings saved');
+        }
+
+        function syncAISettings() {
+            document.getElementById('ai-api-url').value = aiSettings.apiUrl;
+            document.getElementById('ai-api-key').value = aiSettings.apiKey;
+            document.getElementById('ai-stream-toggle').checked = aiSettings.stream;
+
+            // Update model selector
+            const select = document.getElementById('ai-model-select');
+            select.innerHTML = '';
+            aiSettings.models.forEach(model => {
+                const option = document.createElement('option');
+                option.value = model;
+                option.textContent = model;
+                select.appendChild(option);
+            });
+
+            // Update models list in settings
+            renderAIModelsList();
+        }
+
+        function renderAIModelsList() {
+            const container = document.getElementById('ai-models-list');
+            container.innerHTML = '';
+            aiSettings.models.forEach((model, idx) => {
+                const div = document.createElement('div');
+                div.className = 'model-item';
+                div.innerHTML = `
+                    <input type="text" value="${model}" onchange="updateAIModel(${idx}, this.value)">
+                    <button class="btn-remove" onclick="removeAIModel(${idx})">×</button>
+                `;
+                container.appendChild(div);
+            });
+        }
+
+        function addAIModel() {
+            aiSettings.models.push('');
+            renderAIModelsList();
+        }
+
+        function removeAIModel(idx) {
+            aiSettings.models.splice(idx, 1);
+            renderAIModelsList();
+        }
+
+        function updateAIModel(idx, value) {
+            aiSettings.models[idx] = value.trim();
+        }
+
+        function openAISettings() {
+            document.getElementById('ai-settings-modal').classList.add('active');
+        }
+
+        function closeAISettings() {
+            document.getElementById('ai-settings-modal').classList.remove('active');
+        }
+
+        function clearAIContext() {
+            if (confirm(curLang === 'zh' ? '确定要清除聊天记录吗？' : 'Clear chat history?')) {
+                aiMessages = [];
+                document.getElementById('ai-messages').innerHTML = '';
+            }
+        }
+
+        function handleAIInput(event) {
+            if (event.key === 'Enter' && !event.shiftKey) {
+                event.preventDefault();
+                sendAIMessage();
+            }
+        }
+
+        function addAIMessageToUI(role, content) {
+            const container = document.getElementById('ai-messages');
+            const div = document.createElement('div');
+            div.className = `ai-message ${role}`;
+
+            const avatar = document.createElement('div');
+            avatar.className = 'ai-message-avatar';
+            avatar.textContent = role === 'user' ? '👤' : '🤖';
+
+            const contentDiv = document.createElement('div');
+            contentDiv.className = 'ai-message-content';
+            contentDiv.textContent = content;
+
+            div.appendChild(avatar);
+            div.appendChild(contentDiv);
+            container.appendChild(div);
+            container.scrollTop = container.scrollHeight;
+
+            return contentDiv;
+        }
+
+        async function sendAIMessage() {
+            const input = document.getElementById('ai-input');
+            const message = input.value.trim();
+            if (!message) return;
+
+            const sendBtn = document.getElementById('ai-send-btn');
+            sendBtn.disabled = true;
+
+            input.value = '';
+            aiMessages.push({ role: 'user', content: message });
+            addAIMessageToUI('user', message);
+
+            try {
+                const model = document.getElementById('ai-model-select').value;
+                const messages = [
+                    { role: 'system', content: AI_SYSTEM_PROMPT },
+                    ...aiMessages
+                ];
+
+                if (aiSettings.stream) {
+                    await streamAIResponse(model, messages);
+                } else {
+                    await fetchAIResponse(model, messages);
+                }
+            } catch (error) {
+                const errorMsg = curLang === 'zh'
+                    ? `错误: ${error.message}`
+                    : `Error: ${error.message}`;
+                addAIMessageToUI('assistant', errorMsg);
+                aiMessages.push({ role: 'assistant', content: errorMsg });
+            } finally {
+                sendBtn.disabled = false;
+            }
+        }
+
+        async function streamAIResponse(model, messages) {
+            const contentDiv = addAIMessageToUI('assistant', '');
+            let fullContent = '';
+
+            const response = await fetch(`${aiSettings.apiUrl}/v1/chat/completions`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${aiSettings.apiKey}`
+                },
+                body: JSON.stringify({
+                    model: model,
+                    messages: messages,
+                    stream: true
+                })
+            });
+
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            }
+
+            const reader = response.body.getReader();
+            const decoder = new TextDecoder();
+
+            while (true) {
+                const { done, value } = await reader.read();
+                if (done) break;
+
+                const chunk = decoder.decode(value);
+                const lines = chunk.split('\n');
+
+                for (const line of lines) {
+                    if (line.startsWith('data: ')) {
+                        const data = line.slice(6);
+                        if (data === '[DONE]') continue;
+
+                        try {
+                            const parsed = JSON.parse(data);
+                            const content = parsed.choices?.[0]?.delta?.content;
+                            if (content) {
+                                fullContent += content;
+                                contentDiv.textContent = fullContent;
+                                document.getElementById('ai-messages').scrollTop =
+                                    document.getElementById('ai-messages').scrollHeight;
+                            }
+                        } catch (e) { }
+                    }
+                }
+            }
+
+            aiMessages.push({ role: 'assistant', content: fullContent });
+        }
+
+        async function fetchAIResponse(model, messages) {
+            const response = await fetch(`${aiSettings.apiUrl}/v1/chat/completions`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${aiSettings.apiKey}`
+                },
+                body: JSON.stringify({
+                    model: model,
+                    messages: messages,
+                    stream: false
+                })
+            });
+
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            }
+
+            const data = await response.json();
+            const content = data.choices[0].message.content;
+
+            addAIMessageToUI('assistant', content);
+            aiMessages.push({ role: 'assistant', content: content });
+        }
+
+        // Expose AI functions
+        window.openAISettings = openAISettings;
+        window.closeAISettings = closeAISettings;
+        window.saveAISettings = saveAISettings;
+        window.addAIModel = addAIModel;
+        window.removeAIModel = removeAIModel;
+        window.updateAIModel = updateAIModel;
+        window.clearAIContext = clearAIContext;
+        window.handleAIInput = handleAIInput;
+        window.sendAIMessage = sendAIMessage;
 
         // Start
         window.onload = init;
