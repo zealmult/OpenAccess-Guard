@@ -1,108 +1,3 @@
-"""
-title: OpenAccess Guard Pro
-author: zealmult
-author_url: https://github.com/zealmult
-funding_url: https://breathai.top/
-homepage: https://github.com/zealmult/OpenAccess-Guard/
-version: 1.4
-"""
-
-import time
-import re
-import json
-import threading
-import random
-import logging
-from http.server import BaseHTTPRequestHandler, HTTPServer
-from datetime import datetime, timedelta
-from typing import Optional, Callable, Any, Awaitable, List, Dict
-from pydantic import BaseModel, Field
-
-# ============================================================
-# 0. 默认配置与 HTML 模板
-# ============================================================
-
-DEFAULT_CONFIG = {
-    "base": {"enabled": True, "admin_effective": False},
-    "auth": {
-        "enabled": False,
-        "providers": ["outlook.com", "gmail.com", "qq.com"],
-        "deny_msg": "Access Denied: Your email provider is not supported.",
-    },
-    "whitelist": {"enabled": False, "emails": []},
-    "exemption": {"enabled": False, "emails": []},
-    "priority": {"user_priority": False},  # Global Priority
-    "global_limit": {"enabled": False},
-    "user_tiers": [],
-    "model_tiers_config": {"match_tiers": False},
-    "model_tiers": [],
-    "ban_system": {},
-    "fallback": {
-        "enabled": False,
-        "model": "qwen2:0.5b",
-        "notify": True,
-        "notify_msg": "Rate limit exceeded. Switched to fallback model.",
-    },
-    "logging": {
-        "enabled": True,
-        "oag_log": True,
-        "inlet": False,
-        "outlet": False,
-        "stream": False,
-        "user_dict": False,
-    },
-    "ads": {"enabled": False, "content": []},
-    "custom_strings": {
-        "whitelist_deny": "Access Denied: Not in whitelist.",
-        "tier_mismatch": "Tier Mismatch. User Tier {u_tier} cannot access Model Tier {m_tier}",
-        "user_deny_model": "Tier {u_tier} users cannot use model {model_id}",
-        "model_wl_deny": "Access Denied to Tier {m_tier} Model (Whitelist)",
-        "model_bl_deny": "Access Denied to Tier {m_tier} Model (Blacklist)",
-        "rate_limit_deny": "Rate Limit Exceeded: {reason}",
-    },
-}
-
-# 初始化列表结构
-for i in range(6):
-    DEFAULT_CONFIG["user_tiers"].append(
-        {
-            "enabled": True if i == 0 else False,
-            "emails": [],
-            "rpm": 0,
-            "rph": 0,
-            "win_time": 0,
-            "win_limit": 0,
-            "clip": 0,
-            "deny_model_enabled": False,
-            "deny_models": [],
-        }
-    )
-    # 模型 Tier 新增 user_priority 字段
-    DEFAULT_CONFIG["model_tiers"].append(
-        {
-            "enabled": False,
-            "models": [],
-            "rpm": 0,
-            "rph": 0,
-            "win_time": 0,
-            "win_limit": 0,
-            "clip": 0,
-            "mode_whitelist": False,
-            "access_list": [],
-            "user_priority": False,  # New per-tier priority override
-        }
-    )
-
-for i in range(1, 11):
-    DEFAULT_CONFIG["ban_system"][f"reason_{i}"] = {
-        "emails": [],
-        "msg": f"Account Suspended: Reason {i}",
-    }
-    DEFAULT_CONFIG["ads"]["content"].append("")
-
-
-# 压缩的 HTML/JS 界面代码
-HTML_UI = """
 <!DOCTYPE html>
 <html lang="zh-CN">
 
@@ -951,15 +846,14 @@ HTML_UI = """
                     <div class="card-body">
                         <div class="toggle-row">
                             <div>
-                                <div class="label-text" data-i18n="prio_user">User Limit Priority</div>
-                                <div class="description" data-i18n="prio_user_desc">If enabled, as long as the user has
-                                    quota in their User Tier, they can access even if the Model limit is reached.</div>
+                                <div class="label-text" data-i18n="prio_user">Global User Limit Priority</div>
+                                <div class="description" data-i18n="prio_user_desc">If enabled globally, ALL user tiers will prioritize user limits over model limits. Individual tier priority switches will be disabled.</div>
                             </div>
-                            <label class="switch"><input type="checkbox" id="prio_user" onchange="updateConfig()"><span
+                            <label class="switch"><input type="checkbox" id="prio_user" onchange="updateGlobalPriority()"><span
                                     class="slider"></span></label>
                         </div>
                     </div>
-                </div>
+                </div>>
 
                 <!-- 5. User Tiers -->
                 <h2 data-i18n="sec_user_tiers">User Tier System</h2>
@@ -1282,8 +1176,11 @@ HTML_UI = """
                 sec_lists: "Whitelist & Exemption", wl_enabled: "Enable Whitelist System", wl_enabled_desc: "Strict mode: Only listed users can access.", wl_users: "Whitelist Emails",
                 ex_enabled: "Enable Exemption System", ex_enabled_desc: "These users bypass all limits and checks.", ex_users: "Exempt Emails",
 
-                sec_priority: "Priority System", prio_user: "User Limit Priority",
-                prio_user_desc: "If enabled, User Tier limits take precedence. If a user still has quota in their User Tier, they can continue using the AI even if the Model Tier limit is reached. Essentially, User Limits override Model Limits.",
+                sec_priority: "Priority System", prio_user: "Global User Limit Priority",
+                prio_user_desc: "If enabled globally, ALL user tiers will prioritize user limits over model limits. Individual tier priority switches will be disabled.",
+                tier_user_priority: "User Limit Priority (This Tier)",
+                tier_user_priority_desc: "When enabled for this tier, user limits take precedence over model limits",
+                tier_priority_overridden: "⚠ Overridden by Global Setting",
 
                 sec_user_tiers: "User Tier System (0-5)", sec_user_tiers_desc: "Categorize users to apply different limits. Default is Tier 0.",
                 global_limit: "Global Limit", global_limit_desc: "Limits apply across all models cumulatively (e.g., 10 queries total regardless of model).",
@@ -1339,7 +1236,13 @@ HTML_UI = """
                 ad_breath_title: "🚀 Powered By BreathAI",
                 ad_breath_desc: "Get free access to Claude 4.5, Gemini 3 Pro, GPT-5.1, DeepSeek, and Llama APIs.",
                 ad_breath_link: "Get Started at breathai.top &rarr;",
-                storage_title: "Storage Management", storage_desc: "Clear local configuration cache if you encounter issues.", btn_reset: "Reset Config"
+                storage_title: "Storage Management", storage_desc: "Clear local configuration cache if you encounter issues.", btn_reset: "Reset Config",
+                btn_add_user_tier: "➕ Add New User Tier",
+                btn_add_model_tier: "➕ Add New Model Tier",
+                btn_add_ban_reason: "➕ Add Ban Reason",
+                btn_add_ad: "➕ Add Advertisement",
+                btn_delete_tier: "🗑 Delete This Tier",
+                btn_delete: "Delete"
             },
             zh: {
                 nav_settings: "配置", nav_tutorial: "教程", nav_about: "关于",
@@ -1353,8 +1256,11 @@ HTML_UI = """
                 sec_lists: "白名单与豁免权", wl_enabled: "开启白名单系统", wl_enabled_desc: "严格模式：只有名单内的用户可以使用 AI，其他人全部拦截。", wl_users: "白名单用户邮箱",
                 ex_enabled: "开启豁免权系统", ex_enabled_desc: "名单内的用户不受任何限制 (RPM/RPH/黑名单等)。请确保用户值得信任。", ex_users: "豁免权用户邮箱",
 
-                sec_priority: "优先制度", prio_user: "以用户限制优先",
-                prio_user_desc: "开启后，用户等级的限制优先级更高。假如该用户在当前模型等级（Model Tier）已达上限，但其用户等级（User Tier）仍有剩余额度，则允许继续使用。即：用户限制未到，模型限制到了也可以继续。",
+                sec_priority: "优先制度", prio_user: "全局以用户限制优先",
+                prio_user_desc: "全局开启后，所有用户等级都会优先使用用户限制。单独等级的优先开关将被禁用。",
+                tier_user_priority: "用户限制优先（此等级）",
+                tier_user_priority_desc: "为此等级启用后，用户限制优先于模型限制",
+                tier_priority_overridden: "⚠ 已被全局设置覆盖",
 
                 sec_user_tiers: "按用户限制系统 (Tier 0-5)", sec_user_tiers_desc: "将用户分为不同等级。默认新用户为 Tier 0 (最低权限)。",
                 global_limit: "开启全局限制", global_limit_desc: "开启后，限制是对所有模型累计的。例如：限制10次，用户问了5次GPT-4，就只能再问5次Claude。",
@@ -1410,7 +1316,13 @@ HTML_UI = """
                 ad_breath_title: "🚀 由 BreathAI 驱动",
                 ad_breath_desc: "免费使用 Claude 4.5, Gemini 3 Pro, GPT-5.1, DeepSeek 和 Llama API。",
                 ad_breath_link: "前往 breathai.top 开始使用 &rarr;",
-                storage_title: "存储管理", storage_desc: "如果遇到配置错误或缓存问题，可清除本地配置。", btn_reset: "重置所有配置"
+                storage_title: "存储管理", storage_desc: "如果遇到配置错误或缓存问题，可清除本地配置。", btn_reset: "重置所有配置",
+                btn_add_user_tier: "➕ 添加新用户等级",
+                btn_add_model_tier: "➕ 添加新模型等级",
+                btn_add_ban_reason: "➕ 添加封禁理由",
+                btn_add_ad: "➕ 添加广告",
+                btn_delete_tier: "🗑 删除此等级",
+                btn_delete: "删除"
             }
         };
 
@@ -1420,16 +1332,15 @@ HTML_UI = """
             auth: { enabled: false, providers: ["gmail.com", "outlook.com"], deny_msg: "Access Denied: Email domain not allowed." },
             whitelist: { enabled: false, emails: [] },
             exemption: { enabled: false, emails: [] },
-            priority: { user_priority: false },
+            priority: { user_priority: false },  // 全局优先级开关
             global_limit: { enabled: false },
-            user_tiers: [], // Generated in init
+            user_tiers: [], // 动态数组
             model_tiers_config: { match_tiers: true },
-            model_tiers: [], // Generated in init
-            ban_system: {}, // Generated in init
+            model_tiers: [], // 动态数组
+            ban_reasons: [], // 改为数组结构
             fallback: { enabled: false, model: "", notify: true, notify_msg: "Rate limit reached. Switched to basic model." },
             logging: { enabled: false, oag_log: true, inlet: false, outlet: false, stream: false, user_dict: false },
-            ads: { enabled: false, content: Array(10).fill("") },
-            // New Custom Strings
+            ads: { enabled: false, content: [] }, // 动态数组
             custom_strings: {
                 whitelist_deny: "Access Denied: Not in whitelist.",
                 tier_mismatch: "Tier Mismatch. User Tier {u_tier} cannot access Model Tier {m_tier}",
@@ -1443,13 +1354,20 @@ HTML_UI = """
         // --- Core Logic ---
 
         function init() {
-            // Init Arrays
-            for (let i = 0; i <= 5; i++) {
-                config.user_tiers.push({ enabled: i === 0, rpm: 0, rph: 0, win_time: 0, win_limit: 0, clip: 0, deny_model_enabled: false, deny_models: [], emails: [] });
-                config.model_tiers.push({ rpm: 0, rph: 0, win_time: 0, win_limit: 0, clip: 0, models: [], mode_whitelist: true, access_list: [] });
+            // 只初始化默认 Tier 0
+            if (config.user_tiers.length === 0) {
+                config.user_tiers.push({ 
+                    tier_id: 0, tier_name: "Default", enabled: true, rpm: 0, rph: 0, 
+                    win_time: 0, win_limit: 0, clip: 0, deny_model_enabled: false, 
+                    deny_models: [], emails: [], user_priority: false 
+                });
             }
-            for (let i = 1; i <= 10; i++) {
-                config.ban_system[`reason_${i}`] = { emails: [], msg: `Banned: Reason ${i}` };
+            if (config.model_tiers.length === 0) {
+                config.model_tiers.push({ 
+                    tier_id: 0, tier_name: "Default", rpm: 0, rph: 0, 
+                    win_time: 0, win_limit: 0, clip: 0, models: [], 
+                    mode_whitelist: true, access_list: [] 
+                });
             }
 
             // Load Storage
@@ -1457,10 +1375,56 @@ HTML_UI = """
             if (saved) {
                 try {
                     const parsed = JSON.parse(saved);
-                    // Simple merge for top keys to avoid errors if structure changes
+                    
+                    // 数据迁移: 检测旧的 ban_system 对象格式
+                    if (parsed.ban_system && !Array.isArray(parsed.ban_system)) {
+                        parsed.ban_reasons = [];
+                        for (let i = 1; i <= 10; i++) {
+                            const oldReason = parsed.ban_system[`reason_${i}`];
+                            if (oldReason && (oldReason.emails.length > 0 || oldReason.msg !== `Account Suspended: Reason ${i}`)) {
+                                parsed.ban_reasons.push({
+                                    id: `migrated_${i}`,
+                                    name: `Reason ${i}`,
+                                    msg: oldReason.msg,
+                                    emails: oldReason.emails
+                                });
+                            }
+                        }
+                        delete parsed.ban_system;
+                    }
+                    
+                    // 确保 user_tiers 有 user_priority 字段
+                    if (parsed.user_tiers) {
+                        parsed.user_tiers.forEach(tier => {
+                            if (tier.user_priority === undefined) {
+                                tier.user_priority = false;
+                            }
+                            if (tier.tier_id === undefined) {
+                                tier.tier_id = parsed.user_tiers.indexOf(tier);
+                            }
+                            if (!tier.tier_name) {
+                                tier.tier_name = tier.tier_id === 0 ? "Default" : `Tier ${tier.tier_id}`;
+                            }
+                        });
+                    }
+                    
+                    // 确保 model_tiers 有 tier_id 和 tier_name
+                    if (parsed.model_tiers) {
+                        parsed.model_tiers.forEach(tier => {
+                            if (tier.tier_id === undefined) {
+                                tier.tier_id = parsed.model_tiers.indexOf(tier);
+                            }
+                            if (!tier.tier_name) {
+                                tier.tier_name = tier.tier_id === 0 ? "Default" : `Model Tier ${tier.tier_id}`;
+                            }
+                        });
+                    }
+                    
                     config = { ...config, ...parsed };
+                    
                     // Ensure new keys exist if loading old config
                     if (!config.priority) config.priority = { user_priority: false };
+                    if (!config.ban_reasons) config.ban_reasons = [];
                     if (!config.custom_strings) {
                         config.custom_strings = {
                             whitelist_deny: "Access Denied: Not in whitelist.",
@@ -1480,23 +1444,49 @@ HTML_UI = """
         }
 
         function renderDynamicSections() {
-            // 1. User Tiers
+            const globalPriorityEnabled = config.priority && config.priority.user_priority;
+            
+            // ======= 1. User Tiers =======
             const utContainer = document.getElementById('user_tiers_container');
             utContainer.innerHTML = '';
+            
             config.user_tiers.forEach((tier, i) => {
+                const canDelete = tier.tier_id !== 0; // Tier 0 不可删除
                 utContainer.innerHTML += `
             <div class="card">
                 <div class="card-header" onclick="toggleCard(this)">
-                    <h3>Tier ${i} <span style="font-weight:normal; font-size:0.8rem; opacity:0.7">(${i === 0 ? 'Default' : 'VIP'})</span></h3>
+                    <h3>
+                        <input type="text" value="${tier.tier_name || `Tier ${tier.tier_id}`}" 
+                               id="ut_${i}_name" 
+                               onchange="config.user_tiers[${i}].tier_name=this.value;updateConfig();"
+                               style="background:transparent;border:none;font-size:1.4rem;font-weight:600;width:auto;padding:0;margin:0;color:inherit"
+                               onclick="event.stopPropagation()">
+                        <span style="font-weight:normal; font-size:0.8rem; opacity:0.7">(ID: ${tier.tier_id})</span>
+                    </h3>
                     <span class="icon chevron">▼</span>
                 </div>
                 <div class="card-body">
+                    ${canDelete ? `<button class="btn-danger" onclick="removeUserTier(${i})" style="width:100%;margin-bottom:15px" data-i18n="btn_delete_tier">🗑 Delete This Tier</button>` : ''}
+                    
                     <div class="control-group">
                         <div class="toggle-row">
                             <div class="label-text" data-i18n="tier_enable">Enable Tier</div>
                             <label class="switch"><input type="checkbox" id="ut_${i}_enabled" onchange="updateConfig()"><span class="slider"></span></label>
                         </div>
                     </div>
+                    
+                    <!-- 单独的用户优先级开关 -->
+                    <div class="control-group" id="ut_${i}_priority_section">
+                        <div class="toggle-row">
+                            <div>
+                                <div class="label-text" data-i18n="tier_user_priority">User Limit Priority (This Tier)</div>
+                                <div class="description" data-i18n="tier_user_priority_desc">When enabled for this tier, user limits take precedence over model limits</div>
+                                ${globalPriorityEnabled ? '<div class="description" style="color:var(--danger);font-weight:600" data-i18n="tier_priority_overridden">⚠ Overridden by Global Setting</div>' : ''}
+                            </div>
+                            <label class="switch"><input type="checkbox" id="ut_${i}_user_priority" onchange="updateConfig()" ${globalPriorityEnabled ? 'disabled' : ''}><span class="slider"></span></label>
+                        </div>
+                    </div>
+                    
                     <div class="input-row">
                         <div class="input-col"><label class="input-label" data-i18n="input_rpm">RPM</label><input type="number" id="ut_${i}_rpm" onchange="updateConfig()"></div>
                         <div class="input-col"><label class="input-label" data-i18n="input_rph">RPH</label><input type="number" id="ut_${i}_rph" onchange="updateConfig()"></div>
@@ -1533,18 +1523,34 @@ HTML_UI = """
                 </div>
             </div>`;
             });
+            
+            // 添加新User Tier按钮
+            utContainer.innerHTML += `
+                <div style="text-align:center; margin-top:20px">
+                    <button class="btn-secondary" onclick="addUserTier()" style="padding:12px 24px" data-i18n="btn_add_user_tier">➕ Add New User Tier</button>
+                </div>`;
 
-            // 2. Model Tiers
+            // ======= 2. Model Tiers =======
             const mtContainer = document.getElementById('model_tiers_container');
             mtContainer.innerHTML = '';
             config.model_tiers.forEach((tier, i) => {
+                const canDelete = tier.tier_id !== 0;
                 mtContainer.innerHTML += `
             <div class="card">
                 <div class="card-header" onclick="toggleCard(this)">
-                    <h3>Tier ${i} <span style="font-weight:normal; font-size:0.8rem; opacity:0.7">Model</span></h3>
+                    <h3>
+                        <input type="text" value="${tier.tier_name || `Model Tier ${tier.tier_id}`}" 
+                               id="mt_${i}_name" 
+                               onchange="config.model_tiers[${i}].tier_name=this.value;updateConfig();"
+                               style="background:transparent;border:none;font-size:1.4rem;font-weight:600;width:auto;padding:0;margin:0;color:inherit"
+                               onclick="event.stopPropagation()">
+                        <span style="font-weight:normal; font-size:0.8rem; opacity:0.7">(ID: ${tier.tier_id})</span>
+                    </h3>
                     <span class="icon chevron">▼</span>
                 </div>
                 <div class="card-body">
+                    ${canDelete ? `<button class="btn-danger" onclick="removeModelTier(${i})" style="width:100%;margin-bottom:15px" data-i18n="btn_delete_tier">🗑 Delete This Tier</button>` : ''}
+                    
                     <div class="input-row">
                         <div class="input-col"><label class="input-label" data-i18n="input_rpm">RPM</label><input type="number" id="mt_${i}_rpm" onchange="updateConfig()"></div>
                         <div class="input-col"><label class="input-label" data-i18n="input_rph">RPH</label><input type="number" id="mt_${i}_rph" onchange="updateConfig()"></div>
@@ -1564,7 +1570,6 @@ HTML_UI = """
                          </div>
                     </div>
 
-                    <!-- Dependent on Match Tiers -->
                     <div id="mt_${i}_access_area" style="margin-top:20px; border-top:1px solid var(--border); padding-top:15px;" class="hidden">
                         <div class="toggle-row">
                             <div class="label-text" data-i18n="model_wl_mode">Mode</div>
@@ -1581,35 +1586,68 @@ HTML_UI = """
                 </div>
             </div>`;
             });
+            
+            // 添加新Model Tier按钮
+            mtContainer.innerHTML += `
+                <div style="text-align:center; margin-top:20px">
+                    <button class="btn-secondary" onclick="addModelTier()" style="padding:12px 24px" data-i18n="btn_add_model_tier">➕ Add New Model Tier</button>
+                </div>`;
 
-            // 3. Bans
+            // ======= 3. Ban Reasons (动态数组) =======
             const banContainer = document.getElementById('ban_container');
             banContainer.innerHTML = '';
-            for (let i = 1; i <= 10; i++) {
+            config.ban_reasons.forEach((reason, i) => {
                 banContainer.innerHTML += `
             <div style="border-bottom:1px solid var(--border); padding-bottom:15px; margin-bottom:15px">
-                 <div style="font-weight:600; margin-bottom:10px; cursor:pointer; display:flex; justify-content:space-between" onclick="this.nextElementSibling.classList.toggle('hidden')">
-                    <span>Reason #${i}</span> <span style="opacity:0.5">▼</span>
+                 <div style="font-weight:600; margin-bottom:10px; cursor:pointer; display:flex; justify-content:space-between; align-items:center" onclick="this.nextElementSibling.classList.toggle('hidden')">
+                    <input type="text" value="${reason.name || `Reason ${i+1}`}" 
+                           id="ban_${i}_name" 
+                           onchange="config.ban_reasons[${i}].name=this.value;updateConfig();"
+                           style="background:transparent;border:none;font-weight:600;font-size:1rem;width:auto;padding:0;margin:0;color:inherit"
+                           onclick="event.stopPropagation()">
+                    <div>
+                        <button class="btn-danger" onclick="removeBanReason(${i});event.stopPropagation()" style="padding:4px 12px;margin-right:10px;font-size:0.85rem" data-i18n="btn_delete">Delete</button>
+                        <span style="opacity:0.5">▼</span>
+                    </div>
                  </div>
                  <div class="hidden">
                      <label class="input-label" data-i18n="ban_users">Banned Users</label>
                      <div id="ban_${i}_tags" class="tag-container"></div>
                      <div class="tag-input-wrapper">
-                        <input type="text" id="ban_${i}_input" placeholder="user@email.com" onkeydown="handleTagInput(event, 'ban_system.reason_${i}.emails', 'ban_${i}_tags')">
-                        <button class="btn-add" onclick="addTagFromInput('ban_${i}_input', 'ban_system.reason_${i}.emails', 'ban_${i}_tags')">+</button>
+                        <input type="text" id="ban_${i}_input" placeholder="user@email.com" onkeydown="handleTagInput(event, 'ban_reasons.${i}.emails', 'ban_${i}_tags')">
+                        <button class="btn-add" onclick="addTagFromInput('ban_${i}_input', 'ban_reasons.${i}.emails', 'ban_${i}_tags')">+</button>
                      </div>
                      <label class="input-label" style="margin-top:10px" data-i18n="ban_msg">Ban Message</label>
-                     <input type="text" id="ban_${i}_msg" oninput="updateConfig()">
+                     <input type="text" id="ban_${i}_msg" oninput="updateConfig()" value="${reason.msg || ''}">
                  </div>
             </div>`;
-            }
+            });
+            
+            // 添加新封禁理由按钮
+            banContainer.innerHTML += `
+                <div style="text-align:center; margin-top:10px">
+                    <button class="btn-secondary" onclick="addBanReason()" style="padding:8px 16px" data-i18n="btn_add_ban_reason">➕ Add Ban Reason</button>
+                </div>`;
 
-            // 4. Ads
+            // ======= 4. Ads (动态数组) =======
             const adsContainer = document.getElementById('ads_container');
             adsContainer.innerHTML = '';
-            for (let i = 0; i < 10; i++) {
-                adsContainer.innerHTML += `<div style="margin-bottom:10px"><label class="input-label">Ad Slot #${i + 1}</label><input type="text" id="ad_${i}" oninput="updateConfig()" data-i18n-placeholder="ad_placeholder"></div>`;
-            }
+            config.ads.content.forEach((ad, i) => {
+                adsContainer.innerHTML += `
+                <div style="margin-bottom:10px; display:flex; gap:10px; align-items:center">
+                    <div style="flex:1">
+                        <label class="input-label">Ad #${i + 1}</label>
+                        <input type="text" id="ad_${i}" oninput="updateConfig()" value="${ad}" data-i18n-placeholder="ad_placeholder">
+                    </div>
+                    <button class="btn-danger" onclick="removeAd(${i})" style="padding:8px 12px; margin-top:20px" data-i18n="btn_delete">Delete</button>
+                </div>`;
+            });
+            
+            // 添加新广告按钮
+            adsContainer.innerHTML += `
+                <div style="text-align:center; margin-top:10px">
+                    <button class="btn-secondary" onclick="addAd()" style="padding:8px 16px" data-i18n="btn_add_ad">➕ Add Advertisement</button>
+                </div>`;
         }
 
         function syncUI(fromJsonEditor = false) {
@@ -1646,6 +1684,12 @@ HTML_UI = """
                 document.getElementById(`ut_${i}_clip`).value = t.clip;
                 document.getElementById(`ut_${i}_deny_enabled`).checked = t.deny_model_enabled;
                 document.getElementById(`ut_${i}_deny_area`).classList.toggle('hidden', !t.deny_model_enabled);
+                // 新增: 同步单独的 user_priority
+                const priorityEl = document.getElementById(`ut_${i}_user_priority`);
+                if (priorityEl) {
+                    priorityEl.checked = t.user_priority || false;
+                    priorityEl.disabled = config.priority && config.priority.user_priority; // 全局开启时禁用
+                }
                 renderTags(t.deny_models, `ut_${i}_deny_tags`, `user_tiers.${i}.deny_models`);
                 renderTags(t.emails, `ut_${i}_users_tags`, `user_tiers.${i}.emails`);
             });
@@ -1670,11 +1714,12 @@ HTML_UI = """
                 renderTags(t.access_list, `mt_${i}_access_tags`, `model_tiers.${i}.access_list`);
             });
 
-            // Bans
-            for (let i = 1; i <= 10; i++) {
-                renderTags(config.ban_system[`reason_${i}`].emails, `ban_${i}_tags`, `ban_system.reason_${i}.emails`);
-                document.getElementById(`ban_${i}_msg`).value = config.ban_system[`reason_${i}`].msg;
-            }
+            // Bans - 改为动态数组
+            config.ban_reasons.forEach((reason, i) => {
+                renderTags(reason.emails, `ban_${i}_tags`, `ban_reasons.${i}.emails`);
+                const msgEl = document.getElementById(`ban_${i}_msg`);
+                if (msgEl) msgEl.value = reason.msg || '';
+            });
 
             // Fallback
             document.getElementById('fb_enabled').checked = config.fallback.enabled;
@@ -1694,8 +1739,10 @@ HTML_UI = """
 
             document.getElementById('ads_enabled').checked = config.ads.enabled;
             document.getElementById('ads_container').classList.toggle('hidden', !config.ads.enabled);
+            // Ads - 改为动态数组
             config.ads.content.forEach((ad, i) => {
-                document.getElementById(`ad_${i}`).value = ad;
+                const adEl = document.getElementById(`ad_${i}`);
+                if (adEl) adEl.value = ad;
             });
 
             // Custom Strings (New)
@@ -1739,6 +1786,11 @@ HTML_UI = """
                 t.win_limit = Number(document.getElementById(`ut_${i}_win_limit`).value);
                 t.clip = Number(document.getElementById(`ut_${i}_clip`).value);
                 t.deny_model_enabled = document.getElementById(`ut_${i}_deny_enabled`).checked;
+                // 新增: 收集 user_priority
+                const priorityEl = document.getElementById(`ut_${i}_user_priority`);
+                if (priorityEl) {
+                    t.user_priority = priorityEl.checked;
+                }
             });
 
             config.model_tiers_config.match_tiers = document.getElementById('match_tiers').checked;
@@ -1751,9 +1803,11 @@ HTML_UI = """
                 t.mode_whitelist = document.getElementById(`mt_${i}_wl_mode`).checked;
             });
 
-            for (let i = 1; i <= 10; i++) {
-                config.ban_system[`reason_${i}`].msg = document.getElementById(`ban_${i}_msg`).value;
-            }
+            // Bans - 改为动态数组
+            config.ban_reasons.forEach((reason, i) => {
+                const msgEl = document.getElementById(`ban_${i}_msg`);
+                if (msgEl) reason.msg = msgEl.value;
+            });
 
             config.fallback.enabled = document.getElementById('fb_enabled').checked;
             config.fallback.model = document.getElementById('fb_model').value;
@@ -1768,9 +1822,11 @@ HTML_UI = """
             config.logging.user_dict = document.getElementById('log_dict').checked;
 
             config.ads.enabled = document.getElementById('ads_enabled').checked;
-            for (let i = 0; i < 10; i++) {
-                config.ads.content[i] = document.getElementById(`ad_${i}`).value;
-            }
+            // Ads - 改为动态数组
+            config.ads.content.forEach((ad, i) => {
+                const adEl = document.getElementById(`ad_${i}`);
+                if (adEl) config.ads.content[i] = adEl.value;
+            });
 
             // Update Custom Strings
             if (!config.custom_strings) config.custom_strings = {};
@@ -1827,6 +1883,125 @@ HTML_UI = """
                 arr.splice(idx, 1);
                 updateConfig();
             }
+        }
+
+        // ===== 新增: 动态 Tier/Ban/Ads 管理函数 =====
+        
+        function addUserTier() {
+            const nextId = Math.max(...config.user_tiers.map(t => t.tier_id), -1) + 1;
+            config.user_tiers.push({
+                tier_id: nextId,
+                tier_name: `User Tier ${nextId}`,
+                enabled: false,
+                emails: [],
+                rpm: 0,
+                rph: 0,
+                win_time: 0,
+                win_limit: 0,
+                clip: 0,
+                deny_model_enabled: false,
+                deny_models: [],
+                user_priority: false
+            });
+            renderDynamicSections();
+            syncUI();
+        }
+
+        function removeUserTier(index) {
+            if (config.user_tiers[index].tier_id === 0) {
+                alert(curLang === 'zh' ? '不能删除默认Tier 0!' : 'Cannot delete default Tier 0!');
+                return;
+            }
+            const confirmMsg = curLang === 'zh' 
+                ? `确定要删除 "${config.user_tiers[index].tier_name}" (ID: ${config.user_tiers[index].tier_id}) 吗？` 
+                : `Delete "${config.user_tiers[index].tier_name}" (ID: ${config.user_tiers[index].tier_id})?`;
+            if (confirm(confirmMsg)) {
+                config.user_tiers.splice(index, 1);
+                renderDynamicSections();
+                syncUI();
+            }
+        }
+
+        function addModelTier() {
+            const nextId = Math.max(...config.model_tiers.map(t => t.tier_id), -1) + 1;
+            config.model_tiers.push({
+                tier_id: nextId,
+                tier_name: `Model Tier ${nextId}`,
+                models: [],
+                rpm: 0,
+                rph: 0,
+                win_time: 0,
+                win_limit: 0,
+                clip: 0,
+                mode_whitelist: true,
+                access_list: []
+            });
+            renderDynamicSections();
+            syncUI();
+        }
+
+        function removeModelTier(index) {
+            if (config.model_tiers[index].tier_id === 0) {
+                alert(curLang === 'zh' ? '不能删除默认Tier 0!' : 'Cannot delete default Tier 0!');
+                return;
+            }
+            const confirmMsg = curLang === 'zh' 
+                ? `确定要删除 "${config.model_tiers[index].tier_name}" (ID: ${config.model_tiers[index].tier_id}) 吗？` 
+                : `Delete "${config.model_tiers[index].tier_name}" (ID: ${config.model_tiers[index].tier_id})?`;
+            if (confirm(confirmMsg)) {
+                config.model_tiers.splice(index, 1);
+                renderDynamicSections();
+                syncUI();
+            }
+        }
+
+        function addBanReason() {
+            const nextId = Date.now(); // 使用时间戳作为唯一ID
+            config.ban_reasons.push({
+                id: `ban_${nextId}`,
+                name: `Ban Reason ${config.ban_reasons.length + 1}`,
+                msg: `Account Suspended`,
+                emails: []
+            });
+            renderDynamicSections();
+            syncUI();
+        }
+
+        function removeBanReason(index) {
+            const confirmMsg = curLang === 'zh' 
+                ? `确定要删除封禁理由 "${config.ban_reasons[index].name}" 吗？` 
+                : `Delete ban reason "${config.ban_reasons[index].name}"?`;
+            if (confirm(confirmMsg)) {
+                config.ban_reasons.splice(index, 1);
+                renderDynamicSections();
+                syncUI();
+            }
+        }
+
+
+        function addAd() {
+            config.ads.content.push('');
+            renderDynamicSections();
+            syncUI();
+        }
+
+        function removeAd(index) {
+            if (confirm(curLang === 'zh' ? '确定要删除这条广告吗?' : 'Delete this ad?')) {
+                config.ads.content.splice(index, 1);
+                renderDynamicSections();
+                syncUI();
+            }
+        }
+
+
+        function updateGlobalPriority() {
+            // 更新全局优先级设置
+            if (!config.priority) config.priority = {};
+            config.priority.user_priority = document.getElementById('prio_user').checked;
+            
+            // 重新渲染 User Tiers 部分以显示/隐藏单独的优先级开关
+            renderDynamicSections();
+            syncUI();
         }
 
         function toggleCard(header) {
@@ -1924,6 +2099,7 @@ HTML_UI = """
         window.toggleSidebar = toggleSidebar;
         window.toggleMobileMenu = toggleMobileMenu;
         window.updateConfig = updateConfig;
+        window.updateGlobalPriority = updateGlobalPriority;
         window.router = router;
         window.toggleCard = toggleCard;
         window.handleTagInput = handleTagInput;
@@ -1933,6 +2109,14 @@ HTML_UI = """
         window.loadFromJSON = loadFromJSON;
         window.copyJSON = copyJSON;
         window.manualReloadJSON = manualReloadJSON;
+        window.addUserTier = addUserTier;
+        window.removeUserTier = removeUserTier;
+        window.addModelTier = addModelTier;
+        window.removeModelTier = removeModelTier;
+        window.addBanReason = addBanReason;
+        window.removeBanReason = removeBanReason;
+        window.addAd = addAd;
+        window.removeAd = removeAd;
 
         // Start
         window.onload = init;
@@ -1940,372 +2124,3 @@ HTML_UI = """
 </body>
 
 </html>
-"""
-
-# ============================================================
-# 1. 配置服务器
-# ============================================================
-
-
-class WebAdminServer:
-    started = False
-
-    def __init__(self, port: int = 6767):
-        if WebAdminServer.started:
-            return
-        self.port = port
-
-        def run_server():
-            class Handler(BaseHTTPRequestHandler):
-                def do_GET(self):
-                    if self.path != "/":
-                        self.send_error(404)
-                        return
-
-                    final_html = HTML_UI.replace(
-                        "__CONFIG_JSON_PLACEHOLDER__", json.dumps(DEFAULT_CONFIG)
-                    )
-                    self.send_response(200)
-                    self.send_header("Content-Type", "text/html; charset=utf-8")
-                    self.end_headers()
-                    self.wfile.write(final_html.encode("utf-8"))
-
-                def log_message(self, format, *args):
-                    pass  # Silence server logs
-
-            try:
-                HTTPServer.allow_reuse_address = True
-                httpd = HTTPServer(("0.0.0.0", self.port), Handler)
-                print(
-                    f"[OpenAccess Guard] Config UI started at http://localhost:{self.port}"
-                )
-                WebAdminServer.started = True
-                httpd.serve_forever()
-            except Exception as e:
-                print(f"[OpenAccess Guard] Server Start Failed: {e}")
-
-        t = threading.Thread(target=run_server, daemon=True)
-        t.start()
-
-
-# ============================================================
-# 2. Filter 主逻辑
-# ============================================================
-
-
-class Filter:
-    class Valves(BaseModel):
-        config_json: str = Field(
-            default=json.dumps(DEFAULT_CONFIG, indent=2),
-            description="请登录到 http://<your-ip>:6767 访问 OAG 网页控制台。Please log in to http://<your-ip>:6767 to access the OAG web console.",
-        )
-
-    def __init__(self):
-        self.valves = self.Valves()
-        self.user_history = {}  # {user_id: {model_id: [timestamps]}}
-        self.parsed_config = None
-        WebAdminServer(port=6767)
-
-    def _get_cfg(self):
-        # 简单缓存，避免每次 parse
-        try:
-            return json.loads(self.valves.config_json)
-        except:
-            return DEFAULT_CONFIG
-
-    def _log(self, cfg, level, msg, data=None):
-        if not cfg["logging"]["enabled"]:
-            return
-        prefix = "[OpenAccess Guard]"
-
-        # OAG 系统日志
-        if level == "OAG" and cfg["logging"]["oag_log"]:
-            print(f"{prefix} {msg} | Data: {data}")
-        # Inlet/Outlet/Stream
-        elif level in ["INLET", "OUTLET", "STREAM"] and cfg["logging"][level.lower()]:
-            # user dict check
-            if data and "user" in data and not cfg["logging"]["user_dict"]:
-                data["user"] = data["user"].get("email", "hidden")
-            print(f"{prefix} [{level}] {msg} | {data}")
-
-    def _get_tier(self, cfg, email, mode="user"):
-        """Determine Tier (0-5) for user or model"""
-        if mode == "user":
-            # 修复：tiers 是列表，使用整数索引访问
-            tiers = cfg["user_tiers"]
-            for i in range(5, -1, -1):
-                if i < len(tiers) and email in tiers[i]["emails"]:
-                    return i
-            return 0  # Default Tier 0
-        else:
-            # Model Tier logic
-            model_id = email  # passed as model_id
-            tiers = cfg["model_tiers"]
-            for i in range(5, -1, -1):
-                if i < len(tiers) and model_id in tiers[i]["models"]:
-                    return i
-            return 0
-
-    def _check_specific_limit(self, source_name, limits, history):
-        """Helper to check if a specific limit config is hit"""
-        now = time.time()
-        rpm = limits["rpm"]
-        rph = limits["rph"]
-        w_lim = limits["win_limit"]
-        w_time = limits["win_time"]  # mins
-
-        if rpm > 0:
-            count = len([t for t in history if now - t < 60])
-            if count >= rpm:
-                return True, f"{source_name} RPM Limit"
-
-        if rph > 0:
-            count = len([t for t in history if now - t < 3600])
-            if count >= rph:
-                return True, f"{source_name} RPH Limit"
-
-        if w_lim > 0 and w_time > 0:
-            count = len([t for t in history if now - t < w_time * 60])
-            if count >= w_lim:
-                return True, f"{source_name} Window Limit"
-
-        return False, None
-
-    def _check_rate_limit(
-        self, cfg, user_id, email, model_id, user_tier_idx, model_tier_idx
-    ):
-        now = time.time()
-
-        # 修复：直接使用整数索引访问配置列表
-        ut_cfg = cfg["user_tiers"][user_tier_idx]
-        mt_cfg = cfg["model_tiers"][model_tier_idx]
-
-        # Cleanup history
-        if user_id not in self.user_history:
-            self.user_history[user_id] = {}
-
-        # Global limit check?
-        target_history_key = "GLOBAL" if cfg["global_limit"]["enabled"] else model_id
-
-        if target_history_key not in self.user_history[user_id]:
-            self.user_history[user_id][target_history_key] = []
-
-        history = self.user_history[user_id][target_history_key]
-        # Cleanup (keep max 1 day for safety)
-        history = [t for t in history if now - t < 86400]
-        self.user_history[user_id][target_history_key] = history
-
-        # --- Priority Logic ---
-        # 1. Check User Tier Status
-        user_hit, user_reason = self._check_specific_limit("User Tier", ut_cfg, history)
-
-        # 2. Check Model Tier Status
-        model_hit, model_reason = self._check_specific_limit(
-            "Model Tier", mt_cfg, history
-        )
-
-        # 3. Determine if Blocked based on Priority (Global OR Specific Tier)
-        global_prio = cfg.get("priority", {}).get("user_priority", False)
-        # 获取当前模型Tier的独立优先设置，默认为False
-        tier_prio = mt_cfg.get("user_priority", False)
-
-        # 如果全局开启 或者 该模型等级单独开启，则执行用户优先逻辑
-        use_user_priority = global_prio or tier_prio
-
-        if use_user_priority:
-            # Rule: "If model limit reached but user limit not, continue"
-            # Means we ONLY block if User Limit is hit.
-            if user_hit:
-                return True, user_reason
-            else:
-                # Even if model_hit is True, we allow it because User Limit is not hit
-                # and priority is active.
-                if model_hit:
-                    # Optional: Log that we bypassed model limit?
-                    pass
-                return False, None
-        else:
-            # Default Rule: Block if ANY limit is hit
-            if user_hit:
-                return True, user_reason
-            if model_hit:
-                return True, model_reason
-
-        return False, None
-
-    async def inlet(
-        self,
-        body: dict,
-        __user__: Optional[dict] = None,
-        __event_emitter__: Optional[Callable[[Any], Awaitable[None]]] = None,
-    ) -> dict:
-        cfg = self._get_cfg()
-
-        # 安全获取自定义字符串，防止老配置缺少字段
-        def get_msg(key, default):
-            return cfg.get("custom_strings", {}).get(key, default)
-
-        # 1. Base Checks
-        if not cfg["base"]["enabled"]:
-            return body
-        if not __user__:
-            return body
-
-        email = __user__.get("email", "")
-        role = __user__.get("role", "user")
-        user_id = __user__.get("id", "")
-        model_id = body.get("model", "")
-
-        self._log(
-            cfg, "INLET", "Request Received", {"user": __user__, "model": model_id}
-        )
-
-        # Admin Bypass
-        if role == "admin" and not cfg["base"]["admin_effective"]:
-            return body
-
-        # Exemption
-        if cfg["exemption"]["enabled"] and email in cfg["exemption"]["emails"]:
-            self._log(cfg, "OAG", "Exempted User", email)
-            return body
-
-        # Auth Provider Check
-        if cfg["auth"]["enabled"]:
-            domain = email.split("@")[-1] if "@" in email else ""
-            if domain not in cfg["auth"]["providers"]:
-                raise Exception(cfg["auth"]["deny_msg"])
-
-        # Whitelist Check
-        if cfg["whitelist"]["enabled"] and email not in cfg["whitelist"]["emails"]:
-            msg = get_msg("whitelist_deny", "Access Denied: Not in whitelist.")
-            raise Exception(msg)
-
-        # Ban System
-        for i in range(1, 11):
-            reason_key = f"reason_{i}"
-            if email in cfg["ban_system"][reason_key]["emails"]:
-                raise Exception(cfg["ban_system"][reason_key]["msg"])
-
-        # Determine Tiers
-        u_tier = self._get_tier(cfg, email, "user")
-        m_tier = self._get_tier(cfg, model_id, "model")
-
-        # 修复：直接使用整数索引访问
-        ut_cfg = cfg["user_tiers"][u_tier]
-        mt_cfg = cfg["model_tiers"][m_tier]
-
-        # --- Access Control Logic ---
-
-        # 1. User Tier - Deny Models
-        if ut_cfg["deny_model_enabled"] and model_id in ut_cfg["deny_models"]:
-            msg = get_msg(
-                "user_deny_model", "Tier {u_tier} users cannot use model {model_id}"
-            )
-            raise Exception(msg.format(u_tier=u_tier, model_id=model_id))
-
-        # 2. Model Tier - Match Tier Logic
-        if cfg["model_tiers_config"]["match_tiers"]:
-            if u_tier != m_tier:
-                msg = get_msg(
-                    "tier_mismatch",
-                    "Tier Mismatch. User Tier {u_tier} cannot access Model Tier {m_tier}",
-                )
-                raise Exception(msg.format(u_tier=u_tier, m_tier=m_tier))
-        else:
-            # 3. Model Tier - Specific Access List (White/Black list)
-            access_list = mt_cfg["access_list"]
-            if mt_cfg["mode_whitelist"]:
-                if email not in access_list:
-                    msg = get_msg(
-                        "model_wl_deny",
-                        "Access Denied to Tier {m_tier} Model (Whitelist)",
-                    )
-                    raise Exception(msg.format(m_tier=m_tier))
-            else:
-                if email in access_list:
-                    msg = get_msg(
-                        "model_bl_deny",
-                        "Access Denied to Tier {m_tier} Model (Blacklist)",
-                    )
-                    raise Exception(msg.format(m_tier=m_tier))
-
-        # --- Rate Limiting ---
-        is_limited, limit_reason = self._check_rate_limit(
-            cfg, user_id, email, model_id, u_tier, m_tier
-        )
-
-        if is_limited:
-            self._log(cfg, "OAG", "Rate Limit Hit", limit_reason)
-
-            if cfg["fallback"]["enabled"]:
-                # Fallback Logic
-                fallback_model = cfg["fallback"]["model"]
-                body["model"] = fallback_model
-
-                if cfg["fallback"]["notify"] and __event_emitter__:
-                    await __event_emitter__(
-                        {
-                            "type": "status",
-                            "data": {
-                                "description": cfg["fallback"]["notify_msg"],
-                                "done": True,
-                            },
-                        }
-                    )
-            else:
-                msg = get_msg("rate_limit_deny", "Rate Limit Exceeded: {reason}")
-                raise Exception(msg.format(reason=limit_reason))
-        else:
-            # Log usage (Add timestamp)
-            target = "GLOBAL" if cfg["global_limit"]["enabled"] else model_id
-            self.user_history[user_id][target].append(time.time())
-
-        # --- Context Clipping ---
-        clip_count = max(ut_cfg["clip"], mt_cfg["clip"])  # Take max clip
-        if clip_count > 0 and "messages" in body:
-            msgs = body["messages"]
-            sys_msg = next((m for m in msgs if m["role"] == "system"), None)
-            chat_msgs = [m for m in msgs if m["role"] != "system"]
-
-            # Keep last N
-            chat_msgs = chat_msgs[-clip_count:]
-
-            if sys_msg:
-                chat_msgs.insert(0, sys_msg)
-
-            body["messages"] = chat_msgs
-            self._log(cfg, "OAG", f"Context Clipped to {clip_count}")
-
-        # --- Ads System ---
-        if cfg["ads"]["enabled"] and cfg["ads"]["content"] and __event_emitter__:
-            valid_ads = [ad for ad in cfg["ads"]["content"] if ad.strip()]
-            if valid_ads:
-                ad_text = random.choice(valid_ads)
-                await __event_emitter__(
-                    {
-                        "type": "status",
-                        "data": {"description": f"📢 {ad_text}", "done": True},
-                    }
-                )
-
-        return body
-
-    async def outlet(self, body: dict, __user__: Optional[dict] = None) -> dict:
-        cfg = self._get_cfg()
-        self._log(cfg, "OUTLET", "Response", {"user": __user__})
-        return body
-
-    async def stream(self, event: Any, __user__: Optional[dict] = None) -> Any:
-        cfg = self._get_cfg()
-        # 仅在开启 stream 日志且非常确定需要时记录，防止刷屏
-        if cfg["logging"]["enabled"] and cfg["logging"]["stream"]:
-            # 简单转换 bytes 为 str 以便查看，不报错
-            log_data = event
-            if isinstance(event, bytes):
-                try:
-                    log_data = event.decode("utf-8")
-                except:
-                    log_data = "<binary>"
-
-            self._log(cfg, "STREAM", "Chunk", {"data": log_data, "user": __user__})
-        return event
