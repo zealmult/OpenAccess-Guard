@@ -1,7 +1,5 @@
 # 🛡️ OpenAccess Guard
 
-**Version 0.1.0**
-
 Fine-grained access control, intelligent rate-limiting, and enterprise-grade security governance for Open WebUI.
 
 The most advanced user-permission & security management filter available for Open WebUI — with features no other filter offers.

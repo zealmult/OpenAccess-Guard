@@ -706,6 +706,7 @@
         .ai-settings-btn {
             background: var(--bg-body);
             border: 1px solid var(--border);
+            color: var(--text-main);
             padding: 8px 12px;
             border-radius: 6px;
             cursor: pointer;
@@ -823,6 +824,88 @@
             color: var(--text-main);
         }
 
+        .ai-clear-btn:hover:not(:disabled) {
+            background: var(--border);
+        }
+
+        .ai-clear-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .ai-input:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+
+        /* Markdown in AI messages */
+        .ai-message-content pre {
+            background: #1e1e1e;
+            padding: 12px;
+            border-radius: 8px;
+            overflow-x: auto;
+            position: relative;
+            margin: 8px 0;
+        }
+
+        .ai-message-content code {
+            font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+            font-size: 0.9em;
+        }
+
+        .ai-message-content pre code {
+            background: none;
+            padding: 0;
+            border-radius: 0;
+        }
+
+        .ai-message-content p {
+            margin: 0.5em 0;
+            line-height: 1.6;
+        }
+
+        .ai-message-content ul,
+        .ai-message-content ol {
+            margin: 0.5em 0;
+            padding-left: 1.5em;
+        }
+
+        .ai-message-content blockquote {
+            border-left: 3px solid var(--primary);
+            padding-left: 12px;
+            margin: 8px 0;
+            opacity: 0.8;
+        }
+
+        .code-block-wrapper {
+            position: relative;
+        }
+
+        .code-copy-btn {
+            position: absolute;
+            top: 8px;
+            right: 8px;
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            color: white;
+            padding: 4px 8px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 0.75rem;
+            opacity: 0.7;
+            transition: 0.2s;
+        }
+
+        .code-copy-btn:hover {
+            opacity: 1;
+            background: rgba(255, 255, 255, 0.2);
+        }
+
+        .code-copy-btn.copied {
+            background: var(--success);
+            border-color: var(--success);
+        }
+
         .ai-clear-btn:hover {
             background: var(--border);
         }
@@ -935,6 +1018,11 @@
             background: var(--primary-hover);
         }
     </style>
+    <!-- Markdown & Syntax Highlighting Libraries -->
+    <script src="https://cdn.jsdelivr.net/npm/marked@11.1.1/marked.min.js"></script>
+    <link rel="stylesheet"
+        href="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.9.0/build/styles/github-dark.min.css">
+    <script src="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.9.0/build/highlight.min.js"></script>
 </head>
 
 <body>
@@ -1439,6 +1527,7 @@
                 <div class="card open">
                     <div class="card-body" style="display:block; padding-top:20px">
                         <h3>OpenAccess Guard Pro</h3>
+                        <p style="color:var(--text-secondary); margin-top:-10px; margin-bottom:15px;">Version 0.1.1</p>
                         <p data-i18n="info_desc">Advanced governance for your LLM interface.</p>
 
                         <p><strong>GitHub:</strong> <a href="https://github.com/zealmult/OpenAccess-Guard"
@@ -1817,7 +1906,14 @@
 
             renderDynamicSections();
             syncUI();
-            setLang(curLang);
+
+            // Initialize AI assistant
+            loadAISettings();
+
+            // Auto-detect browser language
+            const browserLang = navigator.language || navigator.userLanguage;
+            const defaultLang = browserLang.startsWith('zh') ? 'zh' : 'en';
+            setLang(defaultLang);
         }
 
         function renderDynamicSections() {
@@ -2568,23 +2664,6 @@
 
 Be concise, accurate, and helpful. When generating JSON, always provide the complete structure. When explaining, be clear and use examples.`;
 
-        function init() {
-            const saved = localStorage.getItem('oag_config_v4');
-            if (saved) {
-                try {
-                    config = JSON.parse(saved);
-                } catch (e) {
-                    config = JSON.parse(JSON.stringify(DEFAULT_CONFIG));
-                }
-            } else {
-                config = JSON.parse(JSON.stringify(DEFAULT_CONFIG));
-            }
-
-            loadAISettings(); // Initialize AI assistant
-            syncUI();
-            setLang('zh');
-        }
-
         function loadAISettings() {
             const saved = localStorage.getItem('oag_ai_settings');
             if (saved) {
@@ -2699,7 +2778,42 @@ Be concise, accurate, and helpful. When generating JSON, always provide the comp
 
             const contentDiv = document.createElement('div');
             contentDiv.className = 'ai-message-content';
-            contentDiv.textContent = content;
+
+            if (role === 'assistant') {
+                // Render markdown for assistant messages
+                const html = marked.parse(content);
+                contentDiv.innerHTML = html;
+
+                // Apply syntax highlighting to code blocks
+                contentDiv.querySelectorAll('pre code').forEach((block) => {
+                    hljs.highlightElement(block);
+
+                    // Wrap code block and add copy button
+                    const pre = block.parentElement;
+                    const wrapper = document.createElement('div');
+                    wrapper.className = 'code-block-wrapper';
+                    pre.parentNode.insertBefore(wrapper, pre);
+                    wrapper.appendChild(pre);
+
+                    const copyBtn = document.createElement('button');
+                    copyBtn.className = 'code-copy-btn';
+                    copyBtn.textContent = 'Copy';
+                    copyBtn.onclick = () => {
+                        navigator.clipboard.writeText(block.textContent).then(() => {
+                            copyBtn.textContent = 'Copied!';
+                            copyBtn.classList.add('copied');
+                            setTimeout(() => {
+                                copyBtn.textContent = 'Copy';
+                                copyBtn.classList.remove('copied');
+                            }, 2000);
+                        });
+                    };
+                    wrapper.appendChild(copyBtn);
+                });
+            } else {
+                // Plain text for user messages
+                contentDiv.textContent = content;
+            }
 
             div.appendChild(avatar);
             div.appendChild(contentDiv);
@@ -2715,7 +2829,12 @@ Be concise, accurate, and helpful. When generating JSON, always provide the comp
             if (!message) return;
 
             const sendBtn = document.getElementById('ai-send-btn');
+            const clearBtn = document.querySelector('.ai-clear-btn');
+
+            // Disable input and buttons during response
             sendBtn.disabled = true;
+            input.disabled = true;
+            clearBtn.disabled = true;
 
             input.value = '';
             aiMessages.push({ role: 'user', content: message });
@@ -2740,7 +2859,10 @@ Be concise, accurate, and helpful. When generating JSON, always provide the comp
                 addAIMessageToUI('assistant', errorMsg);
                 aiMessages.push({ role: 'assistant', content: errorMsg });
             } finally {
+                // Re-enable input and buttons
                 sendBtn.disabled = false;
+                input.disabled = false;
+                clearBtn.disabled = false;
             }
         }
 
@@ -2785,7 +2907,15 @@ Be concise, accurate, and helpful. When generating JSON, always provide the comp
                             const content = parsed.choices?.[0]?.delta?.content;
                             if (content) {
                                 fullContent += content;
-                                contentDiv.textContent = fullContent;
+                                // Render markdown progressively
+                                const html = marked.parse(fullContent);
+                                contentDiv.innerHTML = html;
+
+                                // Apply syntax highlighting
+                                contentDiv.querySelectorAll('pre code').forEach((block) => {
+                                    hljs.highlightElement(block);
+                                });
+
                                 document.getElementById('ai-messages').scrollTop =
                                     document.getElementById('ai-messages').scrollHeight;
                             }
@@ -2793,6 +2923,39 @@ Be concise, accurate, and helpful. When generating JSON, always provide the comp
                     }
                 }
             }
+
+            // Final render with copy buttons
+            const html = marked.parse(fullContent);
+            contentDiv.innerHTML = html;
+
+            // Apply syntax highlighting and add copy buttons
+            contentDiv.querySelectorAll('pre code').forEach((block) => {
+                hljs.highlightElement(block);
+
+                // Wrap code block and add copy button
+                const pre = block.parentElement;
+                if (!pre.parentElement.classList.contains('code-block-wrapper')) {
+                    const wrapper = document.createElement('div');
+                    wrapper.className = 'code-block-wrapper';
+                    pre.parentNode.insertBefore(wrapper, pre);
+                    wrapper.appendChild(pre);
+
+                    const copyBtn = document.createElement('button');
+                    copyBtn.className = 'code-copy-btn';
+                    copyBtn.textContent = 'Copy';
+                    copyBtn.onclick = () => {
+                        navigator.clipboard.writeText(block.textContent).then(() => {
+                            copyBtn.textContent = 'Copied!';
+                            copyBtn.classList.add('copied');
+                            setTimeout(() => {
+                                copyBtn.textContent = 'Copy';
+                                copyBtn.classList.remove('copied');
+                            }, 2000);
+                        });
+                    };
+                    wrapper.appendChild(copyBtn);
+                }
+            });
 
             aiMessages.push({ role: 'assistant', content: fullContent });
         }

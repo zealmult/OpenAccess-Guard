@@ -4,7 +4,7 @@ author: zealmult
 author_url: https://github.com/zealmult
 funding_url: https://breathai.top/
 homepage: https://github.com/zealmult/OpenAccess-Guard/
-version: 0.1.0
+version: 0.1.1
 """
 
 import time
