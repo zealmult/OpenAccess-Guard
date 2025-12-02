@@ -1072,7 +1072,7 @@
 
                 <!-- 1. Base Settings -->
                 <div class="card open">
-                    <div class="card-header" onclick="toggleCard(this)">
+                    <div class="card-header" onclick="toggleCard(this, event)">
                         <h3 data-i18n="sec_base">Base Settings</h3>
                         <span class="icon chevron">▼</span>
                     </div>
@@ -1104,7 +1104,7 @@
 
                 <!-- 2. Auth Email -->
                 <div class="card">
-                    <div class="card-header" onclick="toggleCard(this)">
+                    <div class="card-header" onclick="toggleCard(this, event)">
                         <h3 data-i18n="sec_auth">Auth Email Settings</h3>
                         <span class="icon chevron">▼</span>
                     </div>
@@ -1143,7 +1143,7 @@
 
                 <!-- 3. Whitelist & Exemption -->
                 <div class="card">
-                    <div class="card-header" onclick="toggleCard(this)">
+                    <div class="card-header" onclick="toggleCard(this, event)">
                         <h3 data-i18n="sec_lists">Whitelist & Exemption</h3>
                         <span class="icon chevron">▼</span>
                     </div>
@@ -1197,7 +1197,7 @@
 
                 <!-- 4. Priority System -->
                 <div class="card">
-                    <div class="card-header" onclick="toggleCard(this)">
+                    <div class="card-header" onclick="toggleCard(this, event)">
                         <h3 data-i18n="sec_priority">Priority System</h3>
                         <span class="icon chevron">▼</span>
                     </div>
@@ -1230,7 +1230,7 @@
                 <!-- 7. Ban System -->
                 <h2 data-i18n="sec_ban">Ban System</h2>
                 <div class="card">
-                    <div class="card-header" onclick="toggleCard(this)">
+                    <div class="card-header" onclick="toggleCard(this, event)">
                         <h3 data-i18n="sec_ban_reasons">Ban Reasons & Users</h3>
                         <span class="icon chevron">▼</span>
                     </div>
@@ -1242,7 +1242,7 @@
                 <!-- 8. Fallback -->
                 <h2 data-i18n="sec_fallback">Fallback System</h2>
                 <div class="card">
-                    <div class="card-header" onclick="toggleCard(this)">
+                    <div class="card-header" onclick="toggleCard(this, event)">
                         <h3 data-i18n="sec_fallback_config">Smart Downgrade (降智)</h3>
                         <span class="icon chevron">▼</span>
                     </div>
@@ -1280,7 +1280,7 @@
                 <!-- 9. Logs & Ads -->
                 <h2 data-i18n="sec_misc">Logs & Ads</h2>
                 <div class="card">
-                    <div class="card-header" onclick="toggleCard(this)">
+                    <div class="card-header" onclick="toggleCard(this, event)">
                         <h3 data-i18n="sec_log_ads">Configuration</h3>
                         <span class="icon chevron">▼</span>
                     </div>
@@ -1332,7 +1332,7 @@
                 <!-- 10. Advanced Settings (NEW) -->
                 <h2 data-i18n="sec_advanced">Advanced Settings</h2>
                 <div class="card">
-                    <div class="card-header" onclick="toggleCard(this)">
+                    <div class="card-header" onclick="toggleCard(this, event)">
                         <h3 data-i18n="sec_custom_strings">Custom Strings</h3>
                         <span class="icon chevron">▼</span>
                     </div>
@@ -1406,7 +1406,7 @@
 
                 <!-- New Detailed Guide Section -->
                 <div class="card open">
-                    <div class="card-header" onclick="toggleCard(this)">
+                    <div class="card-header" onclick="toggleCard(this, event)">
                         <h3 data-i18n="tut_guide_title">Detailed Feature Guide</h3>
                         <span class="icon chevron">▼</span>
                     </div>
@@ -1993,11 +1993,24 @@
         function renderUserGroups(preserveState = false) {
             const container = document.getElementById('user_groups_container');
 
-            // Save open/closed state of cards before re-rendering
-            let openStates = [];
+            // Save open/closed state of parent cards AND nested permission matrix cards
+            let parentCardStates = [];
+            let nestedCardStates = {}; // Key: groupIndex, Value: array of nested card states
             if (preserveState) {
-                container.querySelectorAll('.card').forEach((card, idx) => {
-                    openStates[idx] = card.classList.contains('open');
+                // Get direct children cards (parent user group cards)
+                const parentCards = Array.from(container.children).filter(el => el.classList.contains('card'));
+                parentCards.forEach((card, idx) => {
+                    parentCardStates[idx] = card.classList.contains('open');
+
+                    // Find nested cards within this parent card
+                    const permsContainer = card.querySelector(`#ug_${idx}_perms_container`);
+                    if (permsContainer) {
+                        const nestedCards = permsContainer.querySelectorAll('.card');
+                        nestedCardStates[idx] = [];
+                        nestedCards.forEach((nestedCard, nestedIdx) => {
+                            nestedCardStates[idx][nestedIdx] = nestedCard.classList.contains('open');
+                        });
+                    }
                 });
             }
 
@@ -2005,10 +2018,10 @@
 
             config.user_groups.forEach((group, i) => {
                 const canDelete = group.id !== 'default';
-                const isOpen = preserveState && openStates[i] ? 'open' : '';
+                const isOpen = preserveState && parentCardStates[i] ? 'open' : '';
                 container.innerHTML += `
             <div class="card ${isOpen}">
-                <div class="card-header" onclick="toggleCard(this)">
+                <div class="card-header" onclick="toggleCard(this, event)">
                     <h3>
                         <span style="font-weight:600; font-size:1.2rem">${group.name}</span>
                         <span style="font-weight:normal; font-size:0.8rem; opacity:0.7; margin-left:10px">(ID: ${group.id})</span>
@@ -2045,7 +2058,7 @@
                     <div style="margin-top:20px; border-top:1px solid var(--border); padding-top:15px;">
                         <h4 data-i18n="perm_matrix">Permissions Matrix</h4>
                         <div id="ug_${i}_perms_container">
-                            ${renderPermissionsMatrix(i)}
+                            ${renderPermissionsMatrix(i, preserveState ? nestedCardStates[i] : null)}
                         </div>
                     </div>
                 </div>
@@ -2061,15 +2074,17 @@
             applyLanguageToDynamicContent();
         }
 
-        function renderPermissionsMatrix(groupIndex) {
+        function renderPermissionsMatrix(groupIndex, savedNestedStates = null) {
             let html = '';
             const group = config.user_groups[groupIndex];
+            let cardIndex = 0; // Track which nested card we're rendering
 
             // Default Permissions
             const defPerms = group.default_permissions;
+            const defaultCardOpen = savedNestedStates && savedNestedStates[cardIndex] ? 'open' : '';
             html += `
-            <div class="card" style="background:rgba(var(--primary-rgb), 0.05); border:1px solid var(--primary)">
-                <div class="card-header" onclick="toggleCard(this)">
+            <div class="card ${defaultCardOpen}" style="background:rgba(var(--primary-rgb), 0.05); border:1px solid var(--primary)">
+                <div class="card-header" onclick="toggleCard(this, event)">
                     <h4 style="margin:0" data-i18n="perm_default">Default Permissions</h4>
                     <span class="icon chevron">▼</span>
                 </div>
@@ -2081,22 +2096,24 @@
                     ${renderLimitInputs(`user_groups[${groupIndex}].default_permissions`, defPerms, false)}
                 </div>
             </div>`;
+            cardIndex++;
 
             // Per Model Group Permissions
             config.model_groups.forEach(mg => {
                 const perms = group.permissions[mg.id];
                 const hasOverride = perms !== undefined;
                 const currentPerms = hasOverride ? perms : group.default_permissions; // Show default if not overridden
+                const modelGroupCardOpen = savedNestedStates && savedNestedStates[cardIndex] ? 'open' : '';
 
                 html += `
-                <div class="card" style="margin-top:10px">
-                    <div class="card-header" onclick="toggleCard(this)">
+                <div class="card ${modelGroupCardOpen}" style="margin-top:10px">
+                    <div class="card-header" onclick="toggleCard(this, event)">
                         <h4 style="margin:0">
                             <span style="opacity:0.7">Model Group:</span> ${mg.name}
                         </h4>
                         <div style="display:flex; align-items:center; gap:10px">
-                             ${!hasOverride ? `<button class="btn-secondary" style="padding:4px 8px; font-size:0.8rem" onclick="event.stopPropagation();addPermissionOverride(${groupIndex}, '${mg.id}')">Override</button>` :
-                        `<button class="btn-danger" style="padding:4px 8px; font-size:0.8rem" onclick="event.stopPropagation();removePermissionOverride(${groupIndex}, '${mg.id}')">Reset</button>`}
+                             ${!hasOverride ? `<button class="btn-secondary" style="padding:4px 8px; font-size:0.8rem" onclick="addPermissionOverride(event, ${groupIndex}, '${mg.id}')">Override</button>` :
+                        `<button class="btn-danger" style="padding:4px 8px; font-size:0.8rem" onclick="removePermissionOverride(event, ${groupIndex}, '${mg.id}')">Reset</button>`}
                              <span class="icon chevron">▼</span>
                         </div>
                     </div>
@@ -2121,6 +2138,7 @@
                         `}
                     </div>
                 </div>`;
+                cardIndex++;
             });
 
             return html;
@@ -2158,7 +2176,7 @@
                 const isOpen = preserveState && openStates[i] ? 'open' : '';
                 container.innerHTML += `
             <div class="card ${isOpen}">
-                <div class="card-header" onclick="toggleCard(this)">
+                <div class="card-header" onclick="toggleCard(this, event)">
                     <h3>
                         <span style="font-weight:600; font-size:1.2rem">${group.name}</span>
                         <span style="font-weight:normal; font-size:0.8rem; opacity:0.7; margin-left:10px">(ID: ${group.id})</span>
@@ -2257,7 +2275,8 @@
         }
 
         // Helper functions
-        function addPermissionOverride(groupIndex, modelGroupId) {
+        function addPermissionOverride(event, groupIndex, modelGroupId) {
+            if (event) event.stopPropagation();
             config.user_groups[groupIndex].permissions[modelGroupId] = {
                 ...config.user_groups[groupIndex].default_permissions
             };
@@ -2265,7 +2284,8 @@
             updateConfig();
         }
 
-        function removePermissionOverride(groupIndex, modelGroupId) {
+        function removePermissionOverride(event, groupIndex, modelGroupId) {
+            if (event) event.stopPropagation();
             delete config.user_groups[groupIndex].permissions[modelGroupId];
             renderUserGroups(true); // Re-render with state preservation
             updateConfig();
@@ -2534,8 +2554,14 @@
 
 
 
-        function toggleCard(header) {
-            header.parentElement.classList.toggle('open');
+        function toggleCard(header, event) {
+            if (event) event.stopPropagation();
+            // Use closest() to find the card element, not parentElement
+            // This allows nested cards to work properly
+            const card = header.closest('.card');
+            if (card) {
+                card.classList.toggle('open');
+            }
         }
 
         function router(pageId) {
