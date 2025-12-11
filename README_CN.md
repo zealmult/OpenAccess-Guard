@@ -1,403 +1,300 @@
 # 🛡️ OpenAccess Guard
 
-为 Open WebUI 提供细粒度访问控制、智能速率限制和企业级安全治理。
-
-Open WebUI 最先进的用户权限和安全管理过滤器 — 提供其他过滤器所没有的功能。
+为 Open WebUI 提供细粒度访问控制、智能限流和治理能力，并且**通过一个可视化 JSON 配置器一键管理**。
 
 > 🚀 **由 [BreathAI](https://breathai.top) 驱动**  
-> 免费使用 Claude 4.5/Gemini 3 Pro/GPT-5.1/DeepSeek/Llama/Grok4.1 API
+> 免费使用 Claude 4.5 / Gemini 3 Pro / GPT‑5.1 / DeepSeek / Llama / Grok4.1 API
 
 ---
 
-## 📋 目录
+## 📌 OpenAccess Guard 是什么？
 
-- [为什么选择 OpenAccess Guard？](#-为什么选择-openaccess-guard)
-- [核心功能](#-核心功能)
-- [安装](#-安装)
-- [快速开始](#-快速开始)
-- [配置指南](#-配置指南)
-- [AI 助手](#-ai-助手)
-- [使用场景](#-使用场景)
-- [贡献](#-贡献)
-- [许可证](#-许可证)
+OpenAccess Guard（简称 **OAG**）是一个运行在 Open WebUI 中的 **过滤器函数**。
 
----
+它位于「用户 → 模型」的中间层，用一份 JSON 做到：
 
-## 🚀 为什么选择 OpenAccess Guard？
+- 控制 **谁** 可以访问（邮箱 / 域名 / 用户组 / 封禁）
+- 控制 **能用什么**（模型组 / 高级模型）
+- 控制 **调用频率**（RPM / RPH / 滑动窗口）
+- 控制 **成本 & 风险**（上下文裁剪 / 智能降级 / 日志）
 
-Open WebUI 功能强大 — 但管理**谁可以做什么、频率如何、使用哪个模型**一直是个挑战。
-
-**OpenAccess Guard** 通过引入完整的企业级访问控制层解决了这个问题：
-
-✅ **治理** — 控制谁访问什么  
-✅ **安全** — 封禁用户、邮箱白名单、域名审批  
-✅ **公平使用** — 多层速率限制（RPM、RPH、滑动窗口）  
-✅ **用户等级** — 创建免费、付费、高级用户级别  
-✅ **模型控制** — 将昂贵模型限制给特定用户  
-✅ **智能降级** — 将用户降级到更便宜的模型而不是直接阻止  
-
-所有功能统一在一个开发者友好的系统中。
+所有配置都在一份 JSON 里完成，并可以通过 `index.html` 可视化编辑。
 
 ---
 
-## 🔥 核心功能
+## ✨ 主要特性
 
-### 🧩 1. 基于组的权限系统
+### 1. 基于「用户组 × 模型组」的权限矩阵
 
-用灵活的 **用户组** 和 **模型组** 取代僵化的等级：
+- **用户组**：例如 `free`、`pro`、`enterprise`、`admin`
+- **模型组**：例如 `basic_models`、`premium_models`、`experimental`
+- **权限矩阵**：对每一个「用户组 × 模型组」设置：
+  - 是否允许访问
+  - 每分钟 / 每小时请求数
+  - 滑动时间窗限制
+  - 上下文裁剪数量
 
-- **用户组**：对用户进行分类（例如：免费、高级、管理员）
-- **模型组**：对模型进行分类（例如：基础、高级、实验性）
-- **权限矩阵**：精确定义哪个用户组可以访问哪个模型组，以及限制条件。
+不再被死板的「Tier 等级」绑死，你可以自由搭积木设计自己的权限体系。
 
-*示例*：“免费用户”可以以 10 RPM 访问“基础模型”，但无法访问“高级模型”。“高级用户”可以以更高的限制访问所有内容。
+### 2. 多层限流系统
 
-### ⚡ 2. 智能速率限制
+- 每分钟请求数（`rpm`）
+- 每小时请求数（`rph`）
+- 滑动窗口配额（`win_time` + `win_limit`）
+- 支持默认权限 + 针对某一模型组单独覆盖
 
-其他过滤器不提供的多层限制：
+非常适合做 SaaS 配额、试用限制、防滥用等场景。
 
-- **每分钟请求数 (RPM)**
-- **每小时请求数 (RPH)**
-- **滑动窗口配额**（例如，24 小时内 100 个请求）
-- **全局或按模型**执行
-- **用户优先 vs 模型优先**逻辑
+### 3. 邮箱 / 身份管控
 
-### 🛡️ 3. 完全可自定义的封禁系统
+- **认证邮箱域名**（`auth.providers`）  
+  仅允许 `@company.com`、`@university.edu` 等登录使用。
+- **白名单模式**（`whitelist.emails`）  
+  完全严格：只有白名单里的用户可以访问任何模型。
+- **豁免用户**（`exemption.emails`）  
+  超级 VIP / 管理员，绕过所有限制。
 
-创建无限封禁类别，带有自定义消息：
+### 4. 可配置封禁系统
+
+- 支持多条「封禁理由」，每条有独立的提示语。
+- 每条理由下可挂多个用户邮箱。
+- 命中后直接短路请求，返回你设置的封禁提示。
+
+适合：社区、学校机房、共享服务、收费产品等场景。
+
+### 5. 智能降级（Smart Fallback）
+
+当用户触发限流时：
+
+- 自动将请求切换到一个更便宜/更安全的模型（如从 GPT‑4 降到 GPT‑3.5）。
+- 可选显示自定义提示语。
+
+体验上不「直接拒绝」，而是「悄悄降级」，既友好又省钱。
+
+### 6. 上下文裁剪（Context Clip）
+
+- 限制对话中最多保留多少条历史消息。
+- 自动跳过系统消息，避免破坏系统提示。
+- 有效降低 token 使用 & API 成本。
+
+### 7. 内置 AI 配置助手
+
+在 `index.html` 里有一个独立的 **AI 助手** 页面：
+
+- 用自然语言描述你想要的「权限模型」。
+- 由 AI 自动生成一份完整的 OAG JSON 配置。
+- 也可以把现有 JSON 丢进去让它帮你解释。
+
+后端默认调用 BreathAI，可在设置中自定义 API 地址 / Key / 模型列表。
+
+---
+
+## 📦 安装步骤
+
+### 1. 获取过滤器脚本
+
+```bash
+wget https://raw.githubusercontent.com/zealmult/OpenAccess-Guard/main/oag.py
+```
+
+### 2. 安装到 Open WebUI
+
+1. 打开 **Admin 管理面板 → Functions**。
+2. 点击 **+** 新增一个函数 / 过滤器。
+3. 将 `oag.py` 的内容粘贴进去（或上传文件）。
+4. 保存，并确保过滤器 **已启用**。
+
+### 3. 打开可视化配置器
+
+两种方式：
+
+- 本地：在浏览器中直接打开 `index.html`  
+- 在线：访问 **[oag.breathai.top](https://oag.breathai.top)**
+
+然后：
+
+1. 在左侧选择 **配置（Settings）** 页面。
+2. 配置用户组 / 模型组 / 权限矩阵 / 封禁 / 降级 / 日志等。
+3. 滚动到页面底部，复制 **JSON Configuration**。
+4. 回到 Open WebUI：  
+   **Admin → Functions → OpenAccess Guard → Valves → `config_json`**  
+   将 JSON 粘贴进去并保存。
+
+之后如果想改配置，只要：
+
+- 把当前 JSON 粘贴回配置器  
+- 点击 **「从 JSON 重载 UI」**  
+- 继续可视化编辑即可。
+
+---
+
+## ⚡ 快速示例
+
+### 示例 1：基础免费用户
+
+限制所有默认用户在基础模型上 10 RPM。
 
 ```json
 {
-  "ban_reasons": [
+  "base": { "enabled": true, "admin_effective": false },
+  "auth": { "enabled": false, "providers": [], "deny_msg": "" },
+  "user_groups": [
     {
-      "id": "ban_spam",
-      "name": "垃圾信息违规",
-      "msg": "您的账户因发送垃圾信息已被暂停。",
-      "emails": ["spammer@example.com"]
+      "id": "default",
+      "name": "默认用户",
+      "priority": 0,
+      "emails": [],
+      "default_permissions": {
+        "enabled": true,
+        "rpm": 10,
+        "rph": 100,
+        "win_time": 0,
+        "win_limit": 0,
+        "clip": 0
+      },
+      "permissions": {}
+    }
+  ],
+  "model_groups": [
+    {
+      "id": "basic_models",
+      "name": "基础模型",
+      "models": ["gpt-3.5-turbo", "gemini-flash"]
     }
   ]
 }
 ```
 
-非常适合社区、课堂和生产环境。
-
-### 🔑 4. 基于邮箱的访问控制
-
-多层邮箱控制：
-
-- **域名审批**：仅允许特定邮箱提供商（例如，`@company.com`）
-- **白名单模式**：严格访问 — 仅允许列出的用户
-- **豁免列表**：绕过所有限制的 VIP 用户
-
-### 🌟 5. 智能降级系统
-
-不是阻止达到限制的用户，而是：
-
-- 自动将他们降级到更便宜的模型
-- 可选择显示通知
-- 保持服务顺畅运行
-
-### 🎯 6. 上下文裁剪
-
-自动限制对话历史以节省 token 和成本：
-
-- 为每个等级配置裁剪数量
-- 保留系统消息
-- 降低 API 成本
-
-### 🤖 7. 内置 AI 助手
-
-**v0.1.0 新功能！** 获取配置即时帮助：
-
-- 解释所有 OAG 功能
-- 为您生成 JSON 配置
-- 提供示例和故障排除
-- 支持多个 AI 模型（Gemini、GLM 等）
-
----
-
-## 📦 安装
-
-### 前提条件
-
-- Open WebUI 实例
-- 管理员访问权限
-
-### 步骤
-
-1. **下载过滤器**
-   ```bash
-   wget https://raw.githubusercontent.com/zealmult/OpenAccess-Guard/main/oag.py
-   ```
-
-2. **在 Open WebUI 中安装**
-   - 进入 **管理员面板** → **函数**
-   - 点击 **+** 添加新函数
-   - 上传 `oag.py` 或复制粘贴其内容
-   - 保存并启用过滤器
-
-3. **通过 Web UI 配置**
-   - 在浏览器中打开 `index.html`（[在线版本](https://oag.breathai.top)）
-   - 使用可视化界面配置设置
-   - 复制生成的 JSON
-   - 粘贴到 Open WebUI → 函数 → OpenAccess Guard → Valves → `config_json`
-
----
-
-## 🚀 快速开始
-
-### 基本设置（5 分钟）
-
-1. **启用过滤器**
-   ```json
-   {
-     "base": {"enabled": true, "admin_effective": false}
-   }
-   ```
-
-2. **配置组**
-   ```json
-   {
-     "model_groups": [{
-       "id": "basic_models",
-       "name": "基础模型",
-       "models": ["gpt-3.5-turbo", "gemini-flash"]
-     }],
-     "user_groups": [{
-       "id": "free_users",
-       "name": "免费用户",
-       "emails": [],
-       "default_permissions": {
-         "enabled": true,
-         "rpm": 10,
-         "rph": 100
-       }
-     }]
-   }
-   ```
-
-3. **完成！** 所有用户现在在基础模型上限制为 10 请求/分钟。
-
-### 高级：付费 vs 免费
-   ```json
-   {
-     "user_groups": [
-       {
-         "id": "free",
-         "name": "免费用户",
-         "default_permissions": {"enabled": true, "rpm": 5}
-       },
-       {
-         "id": "premium",
-         "name": "高级用户",
-         "emails": ["vip@example.com"],
-         "priority": 10,
-         "default_permissions": {"enabled": true, "rpm": 100}
-       }
-     ]
-   }
-   ```
-
----
-
-## ⚙️ 配置指南
-
-### 用户组
-
-定义用户类别及其权限：
-
-| 字段 | 描述 | 示例 |
-|-------|-------------|---------|
-| `id` | 唯一标识符 | `"free_users"` |
-| `name` | 显示名称 | `"免费等级"` |
-| `priority` | 数字越大优先级越高 | `10` |
-| `emails` | 此组中的用户 | `["user@example.com"]` |
-| `default_permissions` | 所有模型的默认限制 | `{ "rpm": 10 }` |
-| `permissions` | 特定模型组的限制 | `{ "gpt4_group": { "rpm": 2 } }` |
-
-### 模型组
-
-对模型进行分类：
+### 示例 2：免费 vs 高级
 
 ```json
 {
-  "model_groups": [{
-    "id": "expensive_models",
-    "name": "GPT-4 & Claude 3",
-    "models": ["gpt-4", "claude-3-opus"]
-  }]
+  "user_groups": [
+    {
+      "id": "free",
+      "name": "免费用户",
+      "priority": 0,
+      "emails": [],
+      "default_permissions": {
+        "enabled": true,
+        "rpm": 5,
+        "rph": 50,
+        "win_time": 0,
+        "win_limit": 0,
+        "clip": 8
+      },
+      "permissions": {}
+    },
+    {
+      "id": "premium",
+      "name": "高级用户",
+      "priority": 10,
+      "emails": ["vip@example.com"],
+      "default_permissions": {
+        "enabled": true,
+        "rpm": 60,
+        "rph": 600,
+        "win_time": 0,
+        "win_limit": 0,
+        "clip": 20
+      },
+      "permissions": {}
+    }
+  ],
+  "model_groups": [
+    {
+      "id": "basic",
+      "name": "基础模型",
+      "models": ["gpt-3.5-turbo", "gemini-flash"]
+    },
+    {
+      "id": "premium_models",
+      "name": "高级模型",
+      "models": ["gpt-4.1", "claude-3-opus"]
+    }
+  ]
 }
 ```
 
-### 封禁系统
-
-创建自定义封禁类别：
-
-```json
-{
-  "ban_reasons": [{
-    "id": "ban_abuse",
-    "name": "滥用",
-    "msg": "账户因违反政策已被暂停。",
-    "emails": ["baduser@example.com"]
-  }]
-}
-```
-
-### 降级系统
-
-优雅降级而不是阻止：
-
-```json
-{
-  "fallback": {
-    "enabled": true,
-    "model": "gpt-3.5-turbo",
-    "notify": true,
-    "notify_msg": "已达到速率限制。切换到基础模型。"
-  }
-}
-```
+你可以在 UI 的「权限矩阵」中，为 `premium` 用户组在 `premium_models` 上单独设置更高的限流。
 
 ---
 
-## 🤖 AI 助手
+## 🧩 配置结构（概览）
 
-**v0.1.0 新功能！** 用于配置帮助的内置 AI 助手。
+完整 JSON 大致包含：
 
-### 功能
+- `base`：开关、是否对管理员生效。
+- `auth`：邮箱域名认证。
+- `whitelist` / `exemption`：白名单 / 豁免用户列表。
+- `user_groups[]`：用户组 & 默认 + 按模型组的权限。
+- `model_groups[]`：模型分组。
+- `ban_reasons[]`：封禁理由 + 用户列表。
+- `fallback`：智能降级目标模型 + 文案。
+- `logging`：日志开关（OAG / inlet / outlet / stream / user_dict）。
+- `ads`：可选广告内容（通过 event emitter 注入）。
+- `custom_strings`：内部拒绝 / 提示文案的自定义。
 
-- **24/7 配置帮助**：询问任何 OAG 功能的问题
-- **JSON 生成**：自动生成配置
-- **示例库**：获取实际设置示例
-- **故障排除**：调试配置问题
-
-### 使用
-
-1. 在 `index.html` 打开配置器
-2. 点击侧边栏中的 **AI 助手**
-3. 询问问题，例如：
-   - "如何创建付费 vs 免费等级？"
-   - "为 3 个用户级别生成配置"
-   - "解释优先级系统"
-
-### 配置
-
-默认设置：
-- **API**：`api.breathai.top`
-- **模型**：`gemini-2.5-flash`、`glm-4.5-air`
-- **流式传输**：已启用
-
-点击 ⚙ **设置** 以自定义或添加更多模型。
+通常不需要手写所有字段，推荐通过 UI + AI 助手生成。
 
 ---
 
-## 💡 使用场景
+## 🤖 AI 助手使用
 
-### 1. 免费 vs 付费 SaaS
+1. 打开 `index.html`。
+2. 点击侧边栏的 **AI 助手**。
+3. 可以这样提问：
+   - 「帮我设计一个 免费 / 专业 / 企业 三个等级的配置。」
+   - 「限制所有普通用户每天最多 100 次请求。」
+   - 「解释这份 JSON 每一段在干什么。」
 
-```
-Tier 0（免费）：10 RPM，仅基础模型
-Tier 1（专业版）：100 RPM，所有模型
-Tier 2（企业版）：无限制
-```
-
-### 2. 课堂/大学
-
-```
-- 仅将 @university.edu 邮箱列入白名单
-- 限制学生每天 50 次查询
-- 教授获得无限访问权限（豁免）
-```
-
-### 3. 社区/Discord 机器人
-
-```
-- 自动封禁垃圾信息发送者
-- 速率限制以防止滥用
-- 繁忙时降级到免费模型
-```
-
-### 4. 成本控制
-
-```
-- 仅将 GPT-4 限制给高级用户
-- 将上下文裁剪为 10 条消息（节省 token）
-- 达到限制时自动降级到 GPT-3.5
-```
+默认会使用 BreathAI 的 API，你可以在 ⚙ 设置 中填写自己的 API 地址和 Key，并自定义模型列表。
 
 ---
 
-## 🛠 高级配置
+## 💡 典型场景
 
-### 优先级系统
-
-控制用户限制还是模型限制优先：
-
-- **用户优先**：用户等级限制覆盖模型等级限制
-- **模型优先**（默认）：应用最严格的限制
-
-### 全局限制
-
-在所有模型中共享限制：
-
-```json
-{
-  "global_limit": {"enabled": true},
-  "user_tiers": [{
-    "rph": 100  // 所有模型总共每小时 100 个请求
-  }]
-}
-```
-
-### 上下文裁剪
-
-通过限制对话历史节省成本：
-
-```json
-{
-  "user_tiers": [{
-    "clip": 10  // 仅保留最后 10 条消息
-  }]
-}
-```
+- **SaaS / 内部工具**
+  - 免费 / 专业 / 团队版分级
+  - 针对团队 / 部门设置不同限流
+  - 高级模型仅对付费用户开放
+- **学校 / 实验室 / 机房**
+  - 仅允许学校邮箱登录
+  - 学生每天固定配额
+  - 老师 / 助教在豁免组
+- **社区 / 机器人 / 公共面板**
+  - 防滥用 / 防刷屏限流
+  - 主动封禁恶意用户
+  - 忙碌时自动降级到便宜模型
 
 ---
 
-## 🤝 贡献
+## 🤝 贡献方式
 
-欢迎 Pull Request、功能建议和安全讨论！
+欢迎：
 
-1. Fork 仓库
-2. 创建功能分支（`git checkout -b feature/amazing`）
-3. 提交更改（`git commit -m '添加惊人功能'`）
-4. 推送到分支（`git push origin feature/amazing`）
-5. 打开 Pull Request
+- 提交 Pull Request
+- 在 Issues 中反馈 bug / 提需求
+- 改进文档 / 补充示例配置
 
----
+开发流程：
 
-## ❤️ 支持
-
-喜欢这个项目？以下是您可以提供帮助的方式：
-
-- ⭐ **给仓库加星**
-- 🐛 **通过 Issues 报告错误**
-- 💡 **通过 Discussions 建议功能**
-- 📖 **通过 Pull Requests 改进文档**
+1. Fork 本仓库
+2. 创建分支（`git checkout -b feature/xxx`）
+3. 提交改动
+4. 提交 Pull Request 简要说明。
 
 ---
 
-## 📝 许可证
+## 📝 许可证 & 链接
 
-MIT 许可证 - 详见 [LICENSE](LICENSE)
+- 许可证：**MIT**（详见 `LICENSE`）
+- GitHub：`zealmult/OpenAccess-Guard`
+- Web 配置器：`https://oag.breathai.top`
+- 作者：`@zealmult`
 
----
+英文说明请参见 `README.md`。
 
-## 🔗 链接
-
-- **GitHub**：[zealmult/OpenAccess-Guard](https://github.com/zealmult/OpenAccess-Guard)
-- **Web 配置器**：[oag.breathai.top](https://oag.breathai.top)
-- **作者**：[zealmult](https://github.com/zealmult)
 - **驱动方**：[BreathAI](https://breathai.top) — 免费 AI API 访问
 
 ---

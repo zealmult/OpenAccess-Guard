@@ -1,403 +1,276 @@
 # 🛡️ OpenAccess Guard
 
-Fine-grained access control, intelligent rate-limiting, and enterprise-grade security governance for Open WebUI.
+Fine‑grained access control, smart rate‑limiting, and governance for Open WebUI — managed entirely through a visual JSON configurator.
 
-The most advanced user-permission & security management filter available for Open WebUI — with features no other filter offers.
-
-> 🚀 **Powered By [BreathAI](https://breathai.top)**  
-> Free Claude 4.5/Gemini 3 Pro/GPT-5.1/DeepSeek/Llama/Grok4.1 API
+> 🚀 **Powered by [BreathAI](https://breathai.top)**  
+> Free Claude 4.5 / Gemini 3 Pro / GPT‑5.1 / DeepSeek / Llama / Grok4.1 API
 
 ---
 
-## 📋 Table of Contents
+## 📌 What is OpenAccess Guard?
 
-- [Why OpenAccess Guard?](#-why-openaccess-guard)
-- [Core Features](#-core-features)
-- [Installation](#-installation)
-- [Quick Start](#-quick-start)
-- [Configuration Guide](#-configuration-guide)
-- [AI Assistant](#-ai-assistant)
-- [Use Cases](#-use-cases)
-- [Contributing](#-contributing)
-- [License](#-license)
+OpenAccess Guard (OAG) is a **filter function** for Open WebUI that sits between your users and all models.
 
----
+It lets you centrally control:
 
-## 🚀 Why OpenAccess Guard?
+- **Who** can access the system (email/domain, groups, bans)
+- **What** they can use (which models / model groups)
+- **How often** they can call it (RPM/RPH/sliding windows)
+- **How much it costs you** (context clipping, model downgrades)
 
-Open WebUI is powerful — but managing **who can do what, how often, and with which model** has always been a challenge.
-
-**OpenAccess Guard** solves this by introducing a complete, enterprise-grade access control layer:
-
-✅ **Governance** — Control who accesses what  
-✅ **Security** — Ban users, whitelist emails, approve domains  
-✅ **Fair Usage** — Multi-layer rate limiting (RPM, RPH, sliding windows)  
-✅ **User Tiers** — Create free, paid, premium user levels  
-✅ **Model Control** — Restrict expensive models to specific users  
-✅ **Smart Fallback** — Downgrade users to cheaper models instead of blocking  
-
-All in one unified, developer-friendly system.
+Everything is configured by editing a JSON object — which you can manage visually using `index.html`.
 
 ---
 
-## 🔥 Core Features
+## ✨ Key Features
 
-### 🧩 1. Group-Based Permission System
+### 1. Group‑Based Permission Matrix
 
-Replace rigid tiers with flexible **User Groups** and **Model Groups**:
+- **User Groups**: e.g. `free`, `pro`, `enterprise`, `admin`
+- **Model Groups**: e.g. `basic_models`, `premium_models`, `experimental`
+- **Permission Matrix**: per‑(user_group × model_group) settings:
+  - enable/disable access
+  - RPM / RPH
+  - sliding window limits
+  - context clip
 
-- **User Groups**: Categorize users (e.g., Free, Premium, Admin)
-- **Model Groups**: Categorize models (e.g., Basic, Advanced, Experimental)
-- **Permissions Matrix**: Define exactly which User Group can access which Model Group, and with what limits.
+You no longer fight with rigid “tiers” — you design the matrix that matches your product or organization.
 
-*Example*: "Free Users" can access "Basic Models" at 10 RPM, but cannot access "Advanced Models". "Premium Users" can access everything with higher limits.
+### 2. Multi‑Layer Rate Limiting
 
-### ⚡ 2. Intelligent Rate Limiting
+- Requests per minute (`rpm`)
+- Requests per hour (`rph`)
+- Sliding window limits (`win_time` + `win_limit`)
+- Per user group, per model group, or by default
 
-Multi-layer limits that no other filter provides:
+Used together, this gives you SaaS‑style quotas with almost no code.
 
-- **Requests Per Minute (RPM)**
-- **Requests Per Hour (RPH)**
-- **Sliding Window Quotas** (e.g., 100 requests per 24 hours)
-- **Global or Per-Model** enforcement
-- **User Priority vs Model Priority** logic
+### 3. Email & Identity Control
 
-### 🛡️ 3. Fully Customizable Ban System
+- **Domain allow‑list** (`auth.providers`)  
+  Only allow `@company.com`, `@university.edu`, etc.
+- **Whitelist system** (`whitelist.emails`)  
+  “Strict mode” — only listed users can access anything.
+- **Exemption list** (`exemption.emails`)  
+  VIPs / admins who bypass all other checks.
 
-Create unlimited ban categories with custom messages:
+### 4. Flexible Ban System
 
-```json
-{
-  "ban_reasons": [
-    {
-      "id": "ban_spam",
-      "name": "Spam Violation",
-      "msg": "Your account has been suspended for spamming.",
-      "emails": ["spammer@example.com"]
-    }
-  ]
-}
-```
+- Define multiple ban reasons with custom messages.
+- Attach users (emails) to any ban reason.
+- OAG will short‑circuit the request with your message.
 
-Perfect for communities, classrooms, and production environments.
+Good for communities, classrooms, shared infra or paid products.
 
-### 🔑 4. Email-Based Access Control
+### 5. Smart Fallback (Downgrade Instead of Block)
 
-Multiple layers of email control:
+When a user hits limits:
 
-- **Domain Approval**: Only allow specific email providers (e.g., `@company.com`)
-- **Whitelist Mode**: Strict access — only listed users allowed
-- **Exemption List**: VIP users who bypass all restrictions
+- Automatically switch them to a cheaper/safer model.
+- Optionally show a custom notification.
 
-### 🌟 5. Smart Fallback System
+This keeps the UX smooth while still controlling cost.
 
-Instead of blocking users who hit limits:
+### 6. Context Clipping
 
-- Automatically downgrade them to a cheaper model
-- Optionally show a notification
-- Keep your service running smoothly
+- Limit how many messages are kept in the conversation.
+- Keep system messages intact.
+- Reduce token usage and API cost without changing your frontend.
 
-### 🎯 6. Context Clipping
+### 7. Built‑in AI Assistant
 
-Automatically limit conversation history to save tokens and costs:
+Inside `index.html` there is an “AI Assistant” tab:
 
-- Configure clip count per tier
-- Preserves system messages
-- Reduces API costs
-
-### 🤖 7. Built-in AI Assistant
-
-**NEW in v0.1.0!** Get instant help with configuration:
-
-- Explains all OAG features
-- Generates JSON configurations for you
-- Provides examples and troubleshooting
-- Supports multiple AI models (Gemini, GLM, etc.)
+- Ask in natural language what you want (e.g. “3 user tiers, GPT‑4 only for tier 2”).
+- The assistant generates a valid OAG JSON config.
+- Great for learning the schema and prototyping quickly.
 
 ---
 
 ## 📦 Installation
 
-### Prerequisites
+### 1. Get the Filter Script
 
-- Open WebUI instance
-- Admin access
+```bash
+wget https://raw.githubusercontent.com/zealmult/OpenAccess-Guard/main/oag.py
+```
 
-### Steps
+### 2. Install into Open WebUI
 
-1. **Download the Filter**
-   ```bash
-   wget https://raw.githubusercontent.com/zealmult/OpenAccess-Guard/main/oag.py
-   ```
+1. Open **Admin Panel → Functions**.
+2. Click **+** to add a new function/filter.
+3. Paste the contents of `oag.py` (or upload the file).
+4. Save and make sure the filter is **enabled**.
 
-2. **Install in Open WebUI**
-   - Go to **Admin Panel** → **Functions**
-   - Click **+** to add a new function
-   - Upload `oag.py` or copy-paste its contents
-   - Save and enable the filter
+### 3. Open the Visual Configurator
 
-3. **Configure via Web UI**
-   - Open `index.html` in your browser ([Online Version](https://oag.breathai.top))
-   - Configure your settings using the visual interface
-   - Copy the generated JSON
-   - Paste into Open WebUI → Functions → OpenAccess Guard → Valves → `config_json`
+You have two options:
+
+- Local: open `index.html` in a browser.  
+- Online: visit **[oag.breathai.top](https://oag.breathai.top)**.
+
+Then:
+
+1. Go to the **Settings** page in the sidebar.
+2. Configure groups, permissions, bans, fallback, logging, etc.
+3. Scroll to the bottom and copy the generated **JSON Configuration**.
+4. In Open WebUI, go to:  
+   **Admin → Functions → OpenAccess Guard → Valves → `config_json`**  
+   and paste the JSON.
+
+You can always paste an existing JSON back into the editor, click **“Reload UI from JSON”**, and continue editing visually.
 
 ---
 
-## 🚀 Quick Start
+## ⚡ Quick Examples
 
-### Basic Setup (5 minutes)
+### Example 1 — Basic Free Tier
 
-1. **Enable the Filter**
-   ```json
-   {
-     "base": {"enabled": true, "admin_effective": false}
-   }
-   ```
+Limit all anonymous / default users to 10 RPM on basic models.
 
-2. **Configure Groups**
-   ```json
-   {
-     "model_groups": [{
-       "id": "basic_models",
-       "name": "Basic Models",
-       "models": ["gpt-3.5-turbo", "gemini-flash"]
-     }],
-     "user_groups": [{
-       "id": "free_users",
-       "name": "Free Users",
-       "emails": [],
-       "default_permissions": {
-         "enabled": true,
-         "rpm": 10,
-         "rph": 100
-       }
-     }]
-   }
-   ```
+```json
+{
+  "base": { "enabled": true, "admin_effective": false },
+  "auth": { "enabled": false, "providers": [], "deny_msg": "" },
+  "user_groups": [
+    {
+      "id": "default",
+      "name": "Default Users",
+      "priority": 0,
+      "emails": [],
+      "default_permissions": {
+        "enabled": true,
+        "rpm": 10,
+        "rph": 100,
+        "win_time": 0,
+        "win_limit": 0,
+        "clip": 0
+      },
+      "permissions": {}
+    }
+  ],
+  "model_groups": [
+    {
+      "id": "basic_models",
+      "name": "Basic Models",
+      "models": ["gpt-3.5-turbo", "gemini-flash"]
+    }
+  ]
+}
+```
 
-3. **Done!** All users now limited to 10 requests/min on basic models.
+### Example 2 — Free vs Premium
 
-### Advanced: Paid vs Free
-   ```json
-   {
-     "user_groups": [
-       {
-         "id": "free",
-         "name": "Free Users",
-         "default_permissions": {"enabled": true, "rpm": 5}
-       },
-       {
-         "id": "premium",
-         "name": "Premium Users",
-         "emails": ["vip@example.com"],
-         "priority": 10,
-         "default_permissions": {"enabled": true, "rpm": 100}
-       }
-     ]
-   }
-   ```
+```json
+{
+  "user_groups": [
+    {
+      "id": "free",
+      "name": "Free Users",
+      "priority": 0,
+      "emails": [],
+      "default_permissions": { "enabled": true, "rpm": 5, "rph": 50, "win_time": 0, "win_limit": 0, "clip": 8 },
+      "permissions": {}
+    },
+    {
+      "id": "premium",
+      "name": "Premium Users",
+      "priority": 10,
+      "emails": ["vip@example.com"],
+      "default_permissions": { "enabled": true, "rpm": 60, "rph": 600, "win_time": 0, "win_limit": 0, "clip": 20 },
+      "permissions": {}
+    }
+  ],
+  "model_groups": [
+    {
+      "id": "basic",
+      "name": "Basic",
+      "models": ["gpt-3.5-turbo", "gemini-flash"]
+    },
+    {
+      "id": "premium_models",
+      "name": "Premium Models",
+      "models": ["gpt-4.1", "claude-3-opus"]
+    }
+  ]
+}
+```
+
+You can then override permissions for `premium` on `premium_models` in the UI’s permission matrix.
 
 ---
 
-## ⚙️ Configuration Guide
+## 🧩 Config Structure (High‑Level)
 
-### User Groups
+The full JSON config roughly looks like:
 
-Define user categories and their permissions:
+- `base` — enable switch, include admins or not.
+- `auth` — email domain approval.
+- `whitelist` / `exemption` — hard allow / bypass lists.
+- `user_groups[]` — user segments with default + per‑model‑group permissions.
+- `model_groups[]` — named model collections.
+- `ban_reasons[]` — structured ban categories with messages and emails.
+- `fallback` — downgrade model & notification text.
+- `logging` — what to print in Open WebUI logs.
+- `ads` — optional ad messages (event emitter).
+- `custom_strings` — override internal error / deny messages.
 
-| Field | Description | Example |
-|-------|-------------|---------|
-| `id` | Unique identifier | `"free_users"` |
-| `name` | Display name | `"Free Tier"` |
-| `priority` | Higher number = higher priority | `10` |
-| `emails` | Users in this group | `["user@example.com"]` |
-| `default_permissions` | Default limits for all models | `{ "rpm": 10 }` |
-| `permissions` | Specific limits per model group | `{ "gpt4_group": { "rpm": 2 } }` |
-
-### Model Groups
-
-Categorize models:
-
-```json
-{
-  "model_groups": [{
-    "id": "expensive_models",
-    "name": "GPT-4 & Claude 3",
-    "models": ["gpt-4", "claude-3-opus"]
-  }]
-}
-```
-
-### Ban System
-
-Create custom ban categories:
-
-```json
-{
-  "ban_reasons": [{
-    "id": "ban_abuse",
-    "name": "Abuse",
-    "msg": "Account suspended for policy violation.",
-    "emails": ["baduser@example.com"]
-  }]
-}
-```
-
-### Fallback System
-
-Graceful degradation instead of blocking:
-
-```json
-{
-  "fallback": {
-    "enabled": true,
-    "model": "gpt-3.5-turbo",
-    "notify": true,
-    "notify_msg": "Rate limit reached. Switched to basic model."
-  }
-}
-```
+You normally never hand‑edit all of this — use the UI and AI assistant, then paste.
 
 ---
 
 ## 🤖 AI Assistant
 
-**New in v0.1.0!** Built-in AI assistant for configuration help.
+In the **AI Assistant** tab of `index.html` you can:
 
-### Features
+- Ask for explanations of any feature.
+- Describe your product (e.g. “free + pro + team”) and let it generate a full config.
+- Paste an existing config and ask “what does this do?”.
 
-- **24/7 Configuration Help**: Ask questions about any OAG feature
-- **JSON Generation**: Automatically generates configurations
-- **Examples Library**: Get real-world setup examples
-- **Troubleshooting**: Debug configuration issues
-
-### Usage
-
-1. Open the configurator at `index.html`
-2. Click **AI Assistant** in the sidebar
-3. Ask questions like:
-   - "How do I create paid vs free tiers?"
-   - "Generate a config for 3 user levels"
-   - "Explain the priority system"
-
-### Configuration
-
-Default settings:
-- **API**: `api.breathai.top`
-- **Models**: `gemini-2.5-flash`, `glm-4.5-air`
-- **Streaming**: Enabled
-
-Click ⚙ **Settings** to customize or add more models.
+The assistant talks to an external API (defaults to BreathAI).  
+You can configure API URL, key, models, and streaming in the ⚙ **Settings** panel.
 
 ---
 
-## 💡 Use Cases
+## 💡 Typical Use Cases
 
-### 1. Free vs Paid SaaS
-
-```
-Tier 0 (Free): 10 RPM, basic models only
-Tier 1 (Pro): 100 RPM, all models
-Tier 2 (Enterprise): Unlimited
-```
-
-### 2. Classroom/University
-
-```
-- Whitelist only @university.edu emails
-- Limit students to 50 queries/day
-- Professors get unlimited access (exemption)
-```
-
-### 3. Community/Discord Bot
-
-```
-- Ban spammers automatically
-- Rate limit to prevent abuse
-- Fallback to free models when busy
-```
-
-### 4. Cost Control
-
-```
-- Restrict GPT-4 to premium users only
-- Clip context to 10 messages (save tokens)
-- Auto-downgrade to GPT-3.5 on limits
-```
-
----
-
-## 🛠 Advanced Configuration
-
-### Priority System
-
-Control whether user limits or model limits take precedence:
-
-- **User Priority**: User tier limits override model tier limits
-- **Model Priority** (default): Strictest limit applies
-
-### Global Limits
-
-Pool limits across all models:
-
-```json
-{
-  "global_limit": {"enabled": true},
-  "user_tiers": [{
-    "rph": 100  // 100 requests/hour TOTAL across all models
-  }]
-}
-```
-
-### Context Clipping
-
-Save costs by limiting conversation history:
-
-```json
-{
-  "user_tiers": [{
-    "clip": 10  // Keep only last 10 messages
-  }]
-}
-```
+- **SaaS / Internal Tool**
+  - Free vs paid tiers
+  - Per‑team or per‑department limits
+  - Premium models restricted to paying users
+- **University / Classroom**
+  - Allow only `@university.edu`
+  - Student quotas per day
+  - Professors in an exemption group
+- **Community / Discord / Bot**
+  - Anti‑abuse limits
+  - Ban categories with clear messages
+  - Smart fallback to cheaper models
 
 ---
 
 ## 🤝 Contributing
 
-Pull requests, feature ideas, and security discussions are welcome!
+Contributions are welcome:
 
-1. Fork the repository
-2. Create your feature branch (`git checkout -b feature/amazing`)
-3. Commit your changes (`git commit -m 'Add amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing`)
-5. Open a Pull Request
+1. Fork the repo.
+2. Create a feature branch (`git checkout -b feature/xyz`).
+3. Make your changes.
+4. Open a Pull Request with a clear description.
 
----
-
-## ❤️ Support
-
-Love this project? Here's how you can help:
-
-- ⭐ **Star** the repository
-- 🐛 **Report bugs** via Issues
-- 💡 **Suggest features** via Discussions
-- 📖 **Improve docs** via Pull Requests
+Bug reports and feature ideas via **GitHub Issues** are also appreciated.
 
 ---
 
-## 📝 License
+## 📝 License & Links
 
-MIT License - see [LICENSE](LICENSE) for details.
+- License: **MIT** (see `LICENSE`)
+- GitHub: `zealmult/OpenAccess-Guard`
+- Web Configurator: `https://oag.breathai.top`
+- Author: `@zealmult`
 
----
+For Chinese documentation, see `README_CN.md`.
 
-## 🔗 Links
-
-- **GitHub**: [zealmult/OpenAccess-Guard](https://github.com/zealmult/OpenAccess-Guard)
-- **Web Configurator**: [oag.breathai.top](https://oag.breathai.top)
-- **Author**: [zealmult](https://github.com/zealmult)
 - **Powered By**: [BreathAI](https://breathai.top) — Free AI API Access
 
 ---
