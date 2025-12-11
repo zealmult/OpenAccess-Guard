@@ -294,7 +294,7 @@
             display: none;
         }
 
-        .card.open .card-body {
+        .card.open > .card-body {
             display: block;
         }
 
@@ -1213,7 +1213,7 @@
                                     onchange="updateGlobalPriority()"><span class="slider"></span></label>
                         </div>
                     </div>
-                </div>>
+                </div>
 
                 <!-- 5. User Groups -->
                 <h2 data-i18n="sec_user_groups">User Groups</h2>
@@ -1971,6 +1971,8 @@
                 }];
             }
 
+            ensureConfigDefaults();
+
             renderDynamicSections();
             syncUI();
 
@@ -1983,43 +1985,66 @@
             setLang(defaultLang);
         }
 
-        function renderDynamicSections(preserveState = false) {
-            renderUserGroups(preserveState);
-            renderModelGroups(preserveState);
-            renderBanReasons();
-            renderAds();
-        }
+        function preserveMainScroll(renderFn) {
+            const mainContent = document.querySelector('.main-content');
+            const scrollTop = mainContent ? mainContent.scrollTop : null;
 
-        function renderUserGroups(preserveState = false) {
-            const container = document.getElementById('user_groups_container');
+            renderFn();
 
-            // Save open/closed state of parent cards AND nested permission matrix cards
-            let parentCardStates = [];
-            let nestedCardStates = {}; // Key: groupIndex, Value: array of nested card states
-            if (preserveState) {
-                // Get direct children cards (parent user group cards)
-                const parentCards = Array.from(container.children).filter(el => el.classList.contains('card'));
-                parentCards.forEach((card, idx) => {
-                    parentCardStates[idx] = card.classList.contains('open');
-
-                    // Find nested cards within this parent card
-                    const permsContainer = card.querySelector(`#ug_${idx}_perms_container`);
-                    if (permsContainer) {
-                        const nestedCards = permsContainer.querySelectorAll('.card');
-                        nestedCardStates[idx] = [];
-                        nestedCards.forEach((nestedCard, nestedIdx) => {
-                            nestedCardStates[idx][nestedIdx] = nestedCard.classList.contains('open');
-                        });
-                    }
+            if (mainContent && scrollTop !== null) {
+                requestAnimationFrame(() => {
+                    mainContent.scrollTop = scrollTop;
                 });
             }
+        }
 
-            container.innerHTML = '';
+        function renderDynamicSections(preserveState = false, preserveScroll = false) {
+            const renderFn = () => {
+                renderUserGroups(preserveState);
+                renderModelGroups(preserveState);
+                renderBanReasons();
+                renderAds();
+                applyLanguageToDynamicContent();
+            };
 
-            config.user_groups.forEach((group, i) => {
-                const canDelete = group.id !== 'default';
-                const isOpen = preserveState && parentCardStates[i] ? 'open' : '';
-                container.innerHTML += `
+            if (preserveScroll) {
+                preserveMainScroll(renderFn);
+            } else {
+                renderFn();
+            }
+        }
+
+        function renderUserGroups(preserveState = false, preserveScroll = false) {
+            const renderFn = () => {
+                const container = document.getElementById('user_groups_container');
+
+                // Save open/closed state of parent cards AND nested permission matrix cards
+                let parentCardStates = [];
+                let nestedCardStates = {}; // Key: groupIndex, Value: array of nested card states
+                if (preserveState) {
+                    // Get direct children cards (parent user group cards)
+                    const parentCards = Array.from(container.children).filter(el => el.classList.contains('card'));
+                    parentCards.forEach((card, idx) => {
+                        parentCardStates[idx] = card.classList.contains('open');
+
+                        // Find nested cards within this parent card
+                        const permsContainer = card.querySelector(`#ug_${idx}_perms_container`);
+                        if (permsContainer) {
+                            const nestedCards = permsContainer.querySelectorAll('.card');
+                            nestedCardStates[idx] = [];
+                            nestedCards.forEach((nestedCard, nestedIdx) => {
+                                nestedCardStates[idx][nestedIdx] = nestedCard.classList.contains('open');
+                            });
+                        }
+                    });
+                }
+
+                container.innerHTML = '';
+
+                config.user_groups.forEach((group, i) => {
+                    const canDelete = group.id !== 'default';
+                    const isOpen = preserveState && parentCardStates[i] ? 'open' : '';
+                    container.innerHTML += `
             <div class="card ${isOpen}">
                 <div class="card-header" onclick="toggleCard(this, event)">
                     <h3>
@@ -2063,15 +2088,22 @@
                     </div>
                 </div>
             </div>`;
-            });
+                });
 
-            container.innerHTML += `
+                container.innerHTML += `
                 <div style="text-align:center; margin-top:20px">
                     <button class="btn-secondary" onclick="addUserGroup()" style="padding:12px 24px" data-i18n="btn_add_user_group">➕ Add User Group</button>
                 </div>`;
 
-            // Re-apply language after rendering
-            applyLanguageToDynamicContent();
+                // Re-apply language after rendering
+                applyLanguageToDynamicContent();
+            };
+
+            if (preserveScroll) {
+                preserveMainScroll(renderFn);
+            } else {
+                renderFn();
+            }
         }
 
         function renderPermissionsMatrix(groupIndex, savedNestedStates = null) {
@@ -2159,22 +2191,23 @@
             </div>`;
         }
 
-        function renderModelGroups(preserveState = false) {
-            const container = document.getElementById('model_groups_container');
+        function renderModelGroups(preserveState = false, preserveScroll = false) {
+            const renderFn = () => {
+                const container = document.getElementById('model_groups_container');
 
-            // Save open/closed state of cards before re-rendering
-            let openStates = [];
-            if (preserveState) {
-                container.querySelectorAll('.card').forEach((card, idx) => {
-                    openStates[idx] = card.classList.contains('open');
-                });
-            }
+                // Save open/closed state of cards before re-rendering
+                let openStates = [];
+                if (preserveState) {
+                    container.querySelectorAll('.card').forEach((card, idx) => {
+                        openStates[idx] = card.classList.contains('open');
+                    });
+                }
 
-            container.innerHTML = '';
-            config.model_groups.forEach((group, i) => {
-                const canDelete = group.id !== 'default';
-                const isOpen = preserveState && openStates[i] ? 'open' : '';
-                container.innerHTML += `
+                container.innerHTML = '';
+                config.model_groups.forEach((group, i) => {
+                    const canDelete = group.id !== 'default';
+                    const isOpen = preserveState && openStates[i] ? 'open' : '';
+                    container.innerHTML += `
             <div class="card ${isOpen}">
                 <div class="card-header" onclick="toggleCard(this, event)">
                     <h3>
@@ -2207,15 +2240,22 @@
                     </div>
                 </div>
             </div>`;
-            });
+                });
 
-            container.innerHTML += `
+                container.innerHTML += `
                 <div style="text-align:center; margin-top:20px">
                     <button class="btn-secondary" onclick="addModelGroup()" style="padding:12px 24px" data-i18n="btn_add_model_group">➕ Add Model Group</button>
                 </div>`;
 
-            // Re-apply language after rendering
-            applyLanguageToDynamicContent();
+                // Re-apply language after rendering
+                applyLanguageToDynamicContent();
+            };
+
+            if (preserveScroll) {
+                preserveMainScroll(renderFn);
+            } else {
+                renderFn();
+            }
         }
 
         function renderBanReasons() {
@@ -2280,14 +2320,14 @@
             config.user_groups[groupIndex].permissions[modelGroupId] = {
                 ...config.user_groups[groupIndex].default_permissions
             };
-            renderUserGroups(true); // Re-render with state preservation
+            renderUserGroups(true, true); // Re-render with state preservation
             updateConfig();
         }
 
         function removePermissionOverride(event, groupIndex, modelGroupId) {
             if (event) event.stopPropagation();
             delete config.user_groups[groupIndex].permissions[modelGroupId];
-            renderUserGroups(true); // Re-render with state preservation
+            renderUserGroups(true, true); // Re-render with state preservation
             updateConfig();
         }
 
@@ -2300,7 +2340,7 @@
                 default_permissions: { enabled: false, rpm: 0, rph: 0, win_time: 0, win_limit: 0, clip: 0 },
                 permissions: {}
             });
-            renderUserGroups(true); // Create DOM elements first, preserve state
+            renderUserGroups(true, true); // Create DOM elements first, preserve state
             syncUI(true); // Skip JSON editor update to prevent issues
             localStorage.setItem('oag_config_v4', JSON.stringify(config));
         }
@@ -2309,7 +2349,7 @@
             const confirmMsg = curLang === 'zh' ? '确定要删除此用户组吗？' : 'Are you sure?';
             if (confirm(confirmMsg)) {
                 config.user_groups.splice(index, 1);
-                renderUserGroups(true);
+                renderUserGroups(true, true);
                 updateConfig();
             }
         }
@@ -2320,7 +2360,7 @@
                 name: curLang === 'zh' ? '新模型组' : 'New Models',
                 models: []
             });
-            renderModelGroups(true); // Create DOM elements first, preserve state
+            renderModelGroups(true, true); // Create DOM elements first, preserve state
             syncUI(true); // Skip JSON editor update to prevent issues
             localStorage.setItem('oag_config_v4', JSON.stringify(config));
         }
@@ -2329,7 +2369,7 @@
             const confirmMsg = curLang === 'zh' ? '确定要删除此模型组吗？' : 'Are you sure?';
             if (confirm(confirmMsg)) {
                 config.model_groups.splice(index, 1);
-                renderModelGroups(true);
+                renderModelGroups(true, true);
                 updateConfig();
             }
         }
@@ -2616,10 +2656,81 @@
             }
         }
 
+        function ensureConfigDefaults() {
+            if (!config.base) config.base = { enabled: true, admin_effective: false };
+            if (config.base.enabled === undefined) config.base.enabled = true;
+            if (config.base.admin_effective === undefined) config.base.admin_effective = false;
+
+            if (!config.auth) {
+                config.auth = { enabled: false, providers: ["gmail.com", "outlook.com"], deny_msg: "Access Denied: Email domain not allowed." };
+            } else {
+                if (!Array.isArray(config.auth.providers)) config.auth.providers = [];
+                if (config.auth.enabled === undefined) config.auth.enabled = false;
+                if (config.auth.deny_msg === undefined) config.auth.deny_msg = "Access Denied: Email domain not allowed.";
+            }
+
+            if (!config.whitelist) config.whitelist = { enabled: false, emails: [] };
+            if (!Array.isArray(config.whitelist.emails)) config.whitelist.emails = [];
+            if (config.whitelist.enabled === undefined) config.whitelist.enabled = false;
+
+            if (!config.exemption) config.exemption = { enabled: false, emails: [] };
+            if (!Array.isArray(config.exemption.emails)) config.exemption.emails = [];
+            if (config.exemption.enabled === undefined) config.exemption.enabled = false;
+
+            if (!config.priority) config.priority = { user_priority: false };
+            if (!config.global_limit) config.global_limit = { enabled: false };
+
+            if (!config.user_groups || config.user_groups.length === 0) {
+                config.user_groups = [{
+                    id: "default", name: "Default Users", priority: 0, emails: [],
+                    default_permissions: { enabled: false, rpm: 0, rph: 0, win_time: 0, win_limit: 0, clip: 0 },
+                    permissions: {}
+                }];
+            }
+
+            if (!config.model_groups || config.model_groups.length === 0) {
+                config.model_groups = [{ id: "default", name: "Default Models", models: [] }];
+            }
+
+            if (!config.ban_reasons) config.ban_reasons = [];
+
+            if (!config.fallback) config.fallback = { enabled: false, model: "", notify: true, notify_msg: "" };
+            if (config.fallback.notify === undefined) config.fallback.notify = true;
+            if (config.fallback.notify_msg === undefined) config.fallback.notify_msg = "";
+
+            if (!config.logging) config.logging = { enabled: false, oag_log: true, inlet: false, outlet: false, stream: false, user_dict: false };
+            if (config.logging.oag_log === undefined) config.logging.oag_log = true;
+            if (config.logging.enabled === undefined) config.logging.enabled = false;
+            if (config.logging.inlet === undefined) config.logging.inlet = false;
+            if (config.logging.outlet === undefined) config.logging.outlet = false;
+            if (config.logging.stream === undefined) config.logging.stream = false;
+            if (config.logging.user_dict === undefined) config.logging.user_dict = false;
+
+            if (!config.ads) config.ads = { enabled: false, content: [] };
+            if (!Array.isArray(config.ads.content)) config.ads.content = [];
+            if (config.ads.enabled === undefined) config.ads.enabled = false;
+
+            if (!config.custom_strings) {
+                config.custom_strings = {
+                    whitelist_deny: "Access Denied: Not in whitelist.",
+                    tier_mismatch: "Tier Mismatch. User Tier {u_tier} cannot access Model Tier {m_tier}",
+                    user_deny_model: "Tier {u_tier} users cannot use model {model_id}",
+                    model_wl_deny: "Access Denied to Tier {m_tier} Model (Whitelist)",
+                    model_bl_deny: "Access Denied to Tier {m_tier} Model (Blacklist)",
+                    rate_limit_deny: "Rate Limit Exceeded: {reason}",
+                    group_no_permission: "Access Denied: User group '{u_group}' cannot access model group '{m_group}'"
+                };
+            } else if (!config.custom_strings.group_no_permission) {
+                config.custom_strings.group_no_permission = "Access Denied: User group '{u_group}' cannot access model group '{m_group}'";
+            }
+        }
+
         function loadFromJSON(val) {
             try {
                 const parsed = JSON.parse(val);
                 config = parsed; // Directly update config from JSON
+                ensureConfigDefaults();
+                renderDynamicSections(false, true);
                 localStorage.setItem('oag_config_v4', JSON.stringify(config));
 
                 // Sync UI but pass true to skip updating the JSON editor text
